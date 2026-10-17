@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>Cube Quest 3D</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1220; }
+  canvas { display: block; touch-action: none; }
+
+  #ui {
+    position: fixed; inset: 0 0 auto 0; padding: 16px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: #fff; pointer-events: none; text-shadow: 0 2px 8px rgba(0,0,0,.55);
+  }
+  #score { font-size: 20px; font-weight: 700; letter-spacing: .5px; }
+  #hint { font-size: 13px; opacity: .85; text-align: right; }
+
+  #stick {
+    position: fixed; left: 24px; bottom: 24px; width: 130px; height: 130px;
+    border-radius: 50%; background: rgba(255,255,255,.10);
+    border: 2px solid rgba(255,255,255,.28);
+    display: none; touch-action: none; z-index: 5;
+  }
+  #knob {
+    position: absolute; left: 50%; top: 50%; width: 56px; height: 56px;
+    margin: -28px 0 0 -28px; border-radius: 50%;
+    background: rgba(255,255,255,.8);
+    box-shadow: 0 4px 16px rgba(0,0,0,.35);
+  }
+
+  #win {
+    position: fixed; inset: 0; display: none; flex-direction: column;
+    align-items: center; justify-content: center; gap: 8px;
+    background: rgba(6,12,24,.72); color: #fff;
+    font-family: system-ui, sans-serif; backdrop-filter: blur(6px); z-index: 10;
+  }
+  #win h1 { margin: 0; font-size: 42px; }
+  #win p { margin: 0; opacity: .8; }
+  #restart {
+    margin-top: 16px; padding: 14px 28px; font-size: 17px; font-weight: 600;
+    border: 0; border-radius: 999px; cursor: pointer; color: #fff;
+    background: linear-gradient(135deg, #4fc3f7, #7c4dff);
+  }
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <div id="score">Кубики: 0 / 10</div>
+  <div id="hint">WASD / стрелки — движение</div>
+</div>
+
+<div id="stick"><div id="knob"></div></div>
+
+<div id="win">
+  <h1>Победа!</h1>
+  <p>Все кубики собраны</p>
+  <button id="restart">Ещё раз</button>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+/* ==================== НАСТРОЙКИ ==================== */
+const TOTAL_CUBES = 10;   // сколько кубиков собрать
+const WORLD_RADIUS = 34;  // радиус арены
+const SPEED = 7.5;        // скорость персонажа
+const ACCEL = 12;         // плавность разгона
+
+/* ==================== РЕНДЕР ==================== */
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0xa9d4f5, 45, 110);
+
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 400);
+camera.position.set(0, 7.5, 11.5);
+
+/* ==================== НЕБО (градиент) ==================== */
+const sky = new THREE.Mesh(
+  new THREE.SphereGeometry(200, 32, 16),
+  new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    depthWrite: false,
+    uniforms: {
+      topColor: { value: new THREE.Color(0x1e6fd9) },
+      midColor: { value: new THREE.Color(0x9ad0ff) },
+      botColor: { value: new THREE.Color(0xffe2b8) }
+    },
+    vertexShader: `
+      varying vec3 vDir;
+      void main() {
+        vDir = normalize(position);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }`,
+    fragmentShader: `
+      varying vec3 vDir;
+      uniform vec3 topColor, midColor, botColor;
+      void main() {
+        float h = clamp(vDir.y * 0.5 + 0.5, 0.0, 1.0);
+        vec3 c = mix(botColor, midColor, smoothstep(0.35, 0.55, h));
+        c = mix(c, topColor, smoothstep(0.55, 1.0, h));
+        gl_FragColor = vec4(c, 1.0);
+      }`
+  })
+);
+scene.add(sky);
+
+/* ==================== СВЕТ ==================== */
+scene.add(new THREE.HemisphereLight(0xbfe0ff, 0x3d5c2e, 0.85));
+
+const sun = new THREE.DirectionalLight(0xfff3d6, 2.4);
+sun.position.set(16, 24, 12);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+const sc = sun.shadow.camera;
+sc.left = -35; sc.right = 35; sc.top = 35; sc.bottom = -35; sc.near = 1; sc.far = 80;
+sun.shadow.bias = -0.0006;
+sun.shadow.normalBias = 0.02;
+scene.add(sun);
+
+/* ==================== ЗЕМЛЯ ==================== */
+const ground = new THREE.Mesh(
+  new THREE.CircleGeometry(48, 64),
+  new THREE.MeshStandardMaterial({ color: 0x76b04a, roughness: 0.95, metalness: 0 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+/* ==================== ДЕКОР: деревья и камни ==================== */
+const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 1 });
+const leafMat  = new THREE.MeshStandardMaterial({ color: 0x2e8b57, roughness: 0.85 });
+const leafMat2 = new THREE.MeshStandardMaterial({ color: 0x3fa86a, roughness: 0.85 });
+const rockMat  = new THREE.MeshStandardMaterial({ color: 0x9aa5b1, roughness: 0.9, flatShading: true });
+
+function makeTree(x, z) {
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.24, 1.3, 7), trunkMat);
+  trunk.position.y = 0.65;
+  const c1 = new THREE.Mesh(new THREE.ConeGeometry(1.1, 1.9, 8), leafMat);
+  c1.position.y = 1.9;
+  const c2 = new THREE.Mesh(new THREE.ConeGeometry(0.8, 1.5, 8), leafMat2);
+  c2.position.y = 2.8;
+  [trunk, c1, c2].forEach(m => { m.castShadow = true; m.receiveShadow = true; g.add(m); });
+  g.position.set(x, 0, z);
+  g.scale.setScalar(0.8 + Math.random() * 0.6);
+  g.rotation.y = Math.random() * Math.PI * 2;
+  scene.add(g);
+}
+
+function makeRock(x, z) {
+  const r = new THREE.Mesh(new THREE.IcosahedronGeometry(0.35 + Math.random() * 0.4, 0), rockMat);
+  r.position.set(x, 0.2, z);
+  r.rotation.set(Math.random(), Math.random(), Math.random());
+  r.castShadow = true; r.receiveShadow = true;
+  scene.add(r);
+}
+
+for (let i = 0; i < 26; i++) {
+  const a = Math.random() * Math.PI * 2;
+  const rad = 15 + Math.random() * 20;
+  const x = Math.cos(a) * rad, z = Math.sin(a) * rad;
+  Math.random() < 0.65 ? makeTree(x, z) : makeRock(x, z);
+}
+
+/* ==================== ПЕРСОНАЖ ==================== */
+const player = new THREE.Group();
+
+const bodyMat = new THREE.MeshStandardMaterial({ color: 0x49b6f2, roughness: 0.35, metalness: 0.4 });
+const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.42, 0.6, 8, 16), bodyMat);
+body.position.y = 0.85;
+body.castShadow = true;
+player.add(body);
+
+const headMat = new THREE.MeshStandardMaterial({ color: 0xf2f7ff, roughness: 0.3, metalness: 0.15 });
+const head = new THREE.Mesh(new THREE.SphereGeometry(0.42, 28, 20), headMat);
+head.position.y = 1.62;
+head.castShadow = true;
+player.add(head);
+
+const eyeMat = new THREE.MeshStandardMaterial({ color: 0x101820, roughness: 0.2 });
+for (const sx of [-1, 1]) {
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 12), eyeMat);
+  eye.position.set(0.15 * sx, 1.68, 0.37);
+  player.add(eye);
+}
+
+const ant = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.025, 0.025, 0.35, 6),
+  new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 })
+);
+ant.position.y = 2.16;
+player.add(ant);
+
+const bulbMat = new THREE.MeshStandardMaterial({ color: 0xff5252, emissive: 0xff1744, emissiveIntensity: 3 });
+const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.09, 14, 12), bulbMat);
+bulb.position.y = 2.36;
+player.add(bulb);
+
+scene.add(player);
+
+/* ==================== КУБИКИ ==================== */
+const cubeGeo = new THREE.BoxGeometry(0.65, 0.65, 0.65);
+const cubeMat = new THREE.MeshStandardMaterial({
+  color: 0xffc93c, emissive: 0xff8a00, emissiveIntensity: 1.6,
+  roughness: 0.25, metalness: 0.5
+});
+
+const scoreEl = document.getElementById('score');
+const winEl = document.getElementById('win');
+
+let cubes = [];
+let score = 0;
+
+function updateScore() {
+  scoreEl.textContent = `Кубики: ${score} / ${TOTAL_CUBES}`;
+}
+
+function spawnCubes() {
+  for (const c of cubes) scene.remove(c.mesh);
+  cubes = [];
+  for (let i = 0; i < TOTAL_CUBES; i++) {
+    const a = (i / TOTAL_CUBES) * Math.PI * 2 + Math.random() * 0.4;
+    const rad = 7 + Math.random() * 18;
+    const mesh = new THREE.Mesh(cubeGeo, cubeMat);
+    mesh.position.set(Math.cos(a) * rad, 1.0, Math.sin(a) * rad);
+    mesh.castShadow = true;
+    mesh.userData.phase = Math.random() * Math.PI * 2;
+    scene.add(mesh);
+    cubes.push({ mesh, alive: true });
+  }
+  score = 0;
+  updateScore();
+}
+
+/* ==================== ЧАСТИЦЫ ==================== */
+const pGeo = new THREE.SphereGeometry(0.09, 6, 6);
+const pMat = new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0xffa000, emissiveIntensity: 2.5 });
+const particles = [];
+
+function burst(pos) {
+  for (let i = 0; i < 14; i++) {
+    const m = new THREE.Mesh(pGeo, pMat);
+    m.position.copy(pos);
+    const v = new THREE.Vector3(
+      (Math.random() - 0.5) * 6,
+      Math.random() * 5 + 1.5,
+      (Math.random() - 0.5) * 6
+    );
+    scene.add(m);
+    particles.push({ mesh: m, vel: v, life: 0.7, max: 0.7 });
+  }
+}
+
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.life -= dt;
+    if (p.life <= 0) { scene.remove(p.mesh); particles.splice(i, 1); continue; }
+    p.vel.y -= 14 * dt;
+    p.mesh.position.addScaledVector(p.vel, dt);
+    p.mesh.scale.setScalar(p.life / p.max);
+  }
+}
+
+/* ==================== ЗВУК ==================== */
+let actx = null;
+function beep(freq = 880) {
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = actx.createOscillator();
+    const g = actx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq, actx.currentTime);
+    o.frequency.exponentialRampToValueAtTime(freq * 1.8, actx.currentTime + 0.12);
+    g.gain.setValueAtTime(0.0001, actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.18, actx.currentTime + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + 0.2);
+    o.connect(g).connect(actx.destination);
+    o.start(); o.stop(actx.currentTime + 0.22);
+  } catch (e) {}
+}
+
+/* ==================== ВВОД: КЛАВИАТУРА ==================== */
+const keys = new Set();
+addEventListener('keydown', (e) => {
+  keys.add(e.code);
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+});
+addEventListener('keyup', (e) => keys.delete(e.code));
+addEventListener('blur', () => keys.clear());
+
+/* ==================== ВВОД: ДЖОЙСТИК ==================== */
+const stick = document.getElementById('stick');
+const knob = document.getElementById('knob');
+let joyId = null, joyOrigin = { x: 0, y: 0 }, joyVec = { x: 0, y: 0 };
+
+addEventListener('pointerdown', (e) => {
+  if (e.pointerType === 'mouse' || joyId !== null) return;
+  if (e.clientX > innerWidth * 0.5) return;
+  joyId = e.pointerId;
+  joyOrigin = { x: e.clientX, y: e.clientY };
+  stick.style.display = 'block';
+  stick.style.left = (e.clientX - 65) + 'px';
+  stick.style.top  = (e.clientY - 65) + 'px';
+  stick.style.bottom = 'auto';
+  knob.style.transform = 'translate(0,0)';
+});
+
+addEventListener('pointermove', (e) => {
+  if (e.pointerId !== joyId) return;
+  const dx = e.clientX - joyOrigin.x;
+  const dy = e.clientY - joyOrigin.y;
+  const max = 55;
+  const len = Math.hypot(dx, dy) || 1;
+  const k = len > max ? max / len : 1;
+  const kx = dx * k, ky = dy * k;
+  knob.style.transform = `translate(${kx}px, ${ky}px)`;
+  joyVec.x = kx / max;
+  joyVec.y = ky / max;
+});
+
+function endJoy(e) {
+  if (e.pointerId !== joyId) return;
+  joyId = null;
+  joyVec.x = joyVec.y = 0;
+  stick.style.display = 'none';
+  knob.style.transform = 'translate(0,0)';
+}
+addEventListener('pointerup', endJoy);
+addEventListener('pointercancel', endJoy);
+
+/* ==================== ДВИЖЕНИЕ ==================== */
+const velocity = new THREE.Vector3();
+
+function dampAngle(cur, target, lambda, dt) {
+  let diff = (target - cur) % (Math.PI * 2);
+  if (diff > Math.PI) diff -= Math.PI * 2;
+  if (diff < -Math.PI) diff += Math.PI * 2;
+  return cur + diff * (1 - Math.exp(-lambda * dt));
+}
+
+function getInput() {
+  let x = 0, z = 0;
+  if (keys.has('KeyW') || keys.has('ArrowUp'))    z -= 1;
+  if (keys.has('KeyS') || keys.has('ArrowDown'))  z += 1;
+  if (keys.has('KeyA') || keys.has('ArrowLeft'))  x -= 1;
+  if (keys.has('KeyD') || keys.has('ArrowRight')) x += 1;
+  x += joyVec.x;
+  z += joyVec.y;
+  const len = Math.hypot(x, z);
+  if (len > 1) { x /= len; z /= len; }
+  return { x, z };
+}
+
+function updatePlayer(dt) {
+  const inp = getInput();
+  const t = 1 - Math.exp(-ACCEL * dt);
+  velocity.x += (inp.x * SPEED - velocity.x) * t;
+  velocity.z += (inp.z * SPEED - velocity.z) * t;
+
+  player.position.x += velocity.x * dt;
+  player.position.z += velocity.z * dt;
+
+  const d = Math.hypot(player.position.x, player.position.z);
+  if (d > WORLD_RADIUS) {
+    player.position.x *= WORLD_RADIUS / d;
+    player.position.z *= WORLD_RADIUS / d;
+  }
+
+  const sp = Math.hypot(velocity.x, velocity.z);
+  if (sp > 0.4) {
+    player.rotation.y = dampAngle(player.rotation.y, Math.atan2(velocity.x, velocity.z), 12, dt);
+  }
+
+  const t2 = performance.now() / 1000;
+  player.position.y = Math.abs(Math.sin(t2 * 9)) * 0.06 * Math.min(sp / SPEED, 1);
+}
+
+/* ==================== КАМЕРА ==================== */
+const CAM_OFFSET = new THREE.Vector3(0, 7.5, 11.5);
+const camDesired = new THREE.Vector3();
+const lookAt = new THREE.Vector3(0, 1.3, 0);
+const tmpV = new THREE.Vector3();
+
+function updateCamera(dt) {
+  camDesired.copy(player.position).add(CAM_OFFSET);
+  const t = 1 - Math.exp(-5 * dt);
+  camera.position.lerp(camDesired, t);
+  tmpV.set(player.position.x, player.position.y + 1.3, player.position.z);
+  lookAt.lerp(tmpV, Math.min(1, t * 1.8));
+  camera.lookAt(lookAt);
+}
+
+/* ==================== КУБИКИ: АНИМАЦИЯ И СБОР ==================== */
+function updateCubes(dt, time) {
+  for (const c of cubes) {
+    if (!c.alive) continue;
+    c.mesh.rotation.x += dt * 1.2;
+    c.mesh.rotation.y += dt * 1.8;
+    c.mesh.position.y = 1.0 + Math.sin(time * 2 + c.mesh.userData.phase) * 0.15;
+
+    const dx = c.mesh.position.x - player.position.x;
+    const dz = c.mesh.position.z - player.position.z;
+    if (dx * dx + dz * dz < 1.4 * 1.4) {
+      c.alive = false;
+      scene.remove(c.mesh);
+      burst(c.mesh.position);
+      score++;
+      updateScore();
+      beep(760 + score * 40);
+      if (score === TOTAL_CUBES) winEl.style.display = 'flex';
+    }
+  }
+}
+
+/* ==================== ПЕРЕЗАПУСК ==================== */
+document.getElementById('restart').addEventListener('click', () => {
+  winEl.style.display = 'none';
+  player.position.set(0, 0, 0);
+  velocity.set(0, 0, 0);
+  for (const p of particles) scene.remove(p.mesh);
+  particles.length = 0;
+  spawnCubes();
+});
+
+/* ==================== ПОСТОБРАБОТКА (свечение) ==================== */
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.55, 0.5, 0.85));
+composer.addPass(new OutputPass());
+
+/* ==================== RESIZE ==================== */
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  composer.setSize(innerWidth, innerHeight);
+});
+
+/* ==================== ЦИКЛ ==================== */
+const clock = new THREE.Clock();
+let elapsed = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  elapsed += dt;
+
+  updatePlayer(dt);
+  updateCamera(dt);
+  updateCubes(dt, elapsed);
+  updateParticles(dt);
+
+  bulbMat.emissiveIntensity = 2 + Math.sin(elapsed * 4) * 1.2;
+
+  composer.render();
+}
+
+spawnCubes();
+animate();
+</script>
+</body>
+</html>
