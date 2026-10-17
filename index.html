@@ -10,13 +10,42 @@
   canvas { display: block; touch-action: none; }
 
   #ui {
-    position: fixed; inset: 0 0 auto 0; padding: 16px;
-    display: flex; justify-content: space-between; align-items: flex-start;
+    position: fixed; top: 12px; left: 12px; padding: 0;
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     color: #fff; pointer-events: none; text-shadow: 0 2px 8px rgba(0,0,0,.55);
   }
   #score { font-size: 20px; font-weight: 700; letter-spacing: .5px; }
-  #hint { font-size: 13px; opacity: .85; text-align: right; }
+  #hint { font-size: 12px; opacity: .8; margin-top: 4px; }
+
+  #topright {
+    position: fixed; top: 12px; right: 12px;
+    display: flex; flex-direction: column; gap: 8px; align-items: flex-end;
+    font-family: system-ui, -apple-system, sans-serif;
+    color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.55);
+    pointer-events: auto; z-index: 5;
+  }
+  #topright label.small {
+    font-size: 12px; opacity: .85; letter-spacing: .4px;
+  }
+  #zoom {
+    -webkit-appearance: none; appearance: none;
+    width: 140px; height: 6px; border-radius: 3px;
+    background: rgba(255,255,255,.25);
+    outline: none;
+  }
+  #zoom::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%;
+    background: #4fc3f7; box-shadow: 0 2px 8px rgba(0,0,0,.5);
+    cursor: pointer;
+  }
+  #zoom::-moz-range-thumb {
+    width: 18px; height: 18px; border: 0; border-radius: 50%;
+    background: #4fc3f7; cursor: pointer;
+  }
+  #hitboxRow {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; opacity: .9;
+  }
 
   #stick {
     position: fixed; left: 24px; bottom: 24px; width: 130px; height: 130px;
@@ -53,6 +82,14 @@
   <div id="hint">WASD / стрелки — движение</div>
 </div>
 
+<div id="topright">
+  <label class="small">Камера</label>
+  <input type="range" id="zoom" min="6" max="20" step="0.5" value="13" />
+  <label id="hitboxRow">
+    <input type="checkbox" id="showHitboxes" /> хитбоксы
+  </label>
+</div>
+
 <div id="stick"><div id="knob"></div></div>
 
 <div id="win">
@@ -78,10 +115,14 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 /* ==================== НАСТРОЙКИ ==================== */
-const TOTAL_CUBES = 10;   // сколько кубиков собрать
-const WORLD_RADIUS = 34;  // радиус арены
-const SPEED = 7.5;        // скорость персонажа
-const ACCEL = 12;         // плавность разгона
+const TOTAL_CUBES   = 10;
+const WORLD_RADIUS  = 34;
+const SPEED         = 7.5;
+const ACCEL         = 12;
+const PLAYER_RADIUS = 0.35;
+const CUBE_HITBOX   = 0.9;
+const CAM_MIN       = 6;
+const CAM_MAX       = 20;
 
 /* ==================== РЕНДЕР ==================== */
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -99,12 +140,11 @@ scene.fog = new THREE.Fog(0xa9d4f5, 45, 110);
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 400);
 camera.position.set(0, 7.5, 11.5);
 
-/* ==================== НЕБО (градиент) ==================== */
+/* ==================== НЕБО ==================== */
 const sky = new THREE.Mesh(
   new THREE.SphereGeometry(200, 32, 16),
   new THREE.ShaderMaterial({
-    side: THREE.BackSide,
-    depthWrite: false,
+    side: THREE.BackSide, depthWrite: false,
     uniforms: {
       topColor: { value: new THREE.Color(0x1e6fd9) },
       midColor: { value: new THREE.Color(0x9ad0ff) },
@@ -151,13 +191,40 @@ ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
 scene.add(ground);
 
-/* ==================== ДЕКОР: деревья и камни ==================== */
+/* ==================== ГРУППА ХИТБОКСОВ ==================== */
+const hitboxGroup = new THREE.Group();
+hitboxGroup.visible = false;
+scene.add(hitboxGroup);
+
+const hitMatSphere   = new THREE.MeshBasicMaterial({ color: 0x2bff88, wireframe: true, transparent: true, opacity: 0.55 });
+const hitMatCylinder = new THREE.MeshBasicMaterial({ color: 0xff4466, wireframe: true, transparent: true, opacity: 0.5 });
+
+function addHitboxSphere(x, y, z, r) {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 8), hitMatSphere);
+  m.position.set(x, y, z);
+  hitboxGroup.add(m);
+  return m;
+}
+function addHitboxCylinder(x, z, r, h = 2.6) {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 12), hitMatCylinder);
+  m.position.set(x, h / 2, z);
+  hitboxGroup.add(m);
+  return m;
+}
+
+document.getElementById('showHitboxes').addEventListener('change', (e) => {
+  hitboxGroup.visible = e.target.checked;
+});
+
+/* ==================== ДЕКОР + ПРЕПЯТСТВИЯ ==================== */
 const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 1 });
 const leafMat  = new THREE.MeshStandardMaterial({ color: 0x2e8b57, roughness: 0.85 });
 const leafMat2 = new THREE.MeshStandardMaterial({ color: 0x3fa86a, roughness: 0.85 });
 const rockMat  = new THREE.MeshStandardMaterial({ color: 0x9aa5b1, roughness: 0.9, flatShading: true });
 
-function makeTree(x, z) {
+const obstacles = []; // { x, z, radius }
+
+function makeTree(x, z, scale) {
   const g = new THREE.Group();
   const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.24, 1.3, 7), trunkMat);
   trunk.position.y = 0.65;
@@ -167,61 +234,135 @@ function makeTree(x, z) {
   c2.position.y = 2.8;
   [trunk, c1, c2].forEach(m => { m.castShadow = true; m.receiveShadow = true; g.add(m); });
   g.position.set(x, 0, z);
-  g.scale.setScalar(0.8 + Math.random() * 0.6);
+  g.scale.setScalar(scale);
   g.rotation.y = Math.random() * Math.PI * 2;
   scene.add(g);
+
+  const r = 0.45 * scale;
+  obstacles.push({ x, z, radius: r });
+  addHitboxCylinder(x, z, r, 2.8 * scale);
 }
 
-function makeRock(x, z) {
-  const r = new THREE.Mesh(new THREE.IcosahedronGeometry(0.35 + Math.random() * 0.4, 0), rockMat);
-  r.position.set(x, 0.2, z);
-  r.rotation.set(Math.random(), Math.random(), Math.random());
-  r.castShadow = true; r.receiveShadow = true;
-  scene.add(r);
+function makeRock(x, z, scale) {
+  const r0 = 0.4 + Math.random() * 0.3;
+  const rock = new THREE.Mesh(new THREE.IcosahedronGeometry(r0, 0), rockMat);
+  rock.position.set(x, r0 * 0.65, z);
+  rock.rotation.set(Math.random(), Math.random(), Math.random());
+  rock.castShadow = true; rock.receiveShadow = true;
+  scene.add(rock);
+
+  const r = r0 * 1.05;
+  obstacles.push({ x, z, radius: r });
+  addHitboxCylinder(x, z, r, r0 * 1.6);
 }
 
 for (let i = 0; i < 26; i++) {
   const a = Math.random() * Math.PI * 2;
   const rad = 15 + Math.random() * 20;
   const x = Math.cos(a) * rad, z = Math.sin(a) * rad;
-  Math.random() < 0.65 ? makeTree(x, z) : makeRock(x, z);
+  const s = 0.8 + Math.random() * 0.6;
+  if (Math.random() < 0.65) makeTree(x, z, s);
+  else makeRock(x, z, s);
 }
 
-/* ==================== ПЕРСОНАЖ ==================== */
+/* ==================== ПЕРСОНАЖ (мужчина ~20 лет) ==================== */
 const player = new THREE.Group();
+scene.add(player);
 
-const bodyMat = new THREE.MeshStandardMaterial({ color: 0x49b6f2, roughness: 0.35, metalness: 0.4 });
-const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.42, 0.6, 8, 16), bodyMat);
-body.position.y = 0.85;
-body.castShadow = true;
-player.add(body);
+const bodyRoot = new THREE.Group();
+player.add(bodyRoot);
 
-const headMat = new THREE.MeshStandardMaterial({ color: 0xf2f7ff, roughness: 0.3, metalness: 0.15 });
-const head = new THREE.Mesh(new THREE.SphereGeometry(0.42, 28, 20), headMat);
-head.position.y = 1.62;
+const skinMat  = new THREE.MeshStandardMaterial({ color: 0xe8b98b, roughness: 0.7 });
+const hairMat  = new THREE.MeshStandardMaterial({ color: 0x2b1a10, roughness: 0.95 });
+const shirtMat = new THREE.MeshStandardMaterial({ color: 0x3d8bd4, roughness: 0.65 });
+const pantsMat = new THREE.MeshStandardMaterial({ color: 0x2c3345, roughness: 0.85 });
+const shoeMat  = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.6 });
+const eyeMat   = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.2 });
+
+// торс
+const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.23, 0.5, 6, 12), shirtMat);
+torso.position.y = 1.15;
+torso.castShadow = true;
+bodyRoot.add(torso);
+
+// шея
+const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 0.1, 8), skinMat);
+neck.position.y = 1.55;
+bodyRoot.add(neck);
+
+// голова (в отдельной группе для наклона)
+const headGroup = new THREE.Group();
+headGroup.position.y = 1.72;
+bodyRoot.add(headGroup);
+
+const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 20, 16), skinMat);
 head.castShadow = true;
-player.add(head);
+headGroup.add(head);
 
-const eyeMat = new THREE.MeshStandardMaterial({ color: 0x101820, roughness: 0.2 });
+const hair = new THREE.Mesh(
+  new THREE.SphereGeometry(0.18, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.55),
+  hairMat
+);
+hair.position.y = 0.02;
+headGroup.add(hair);
+
 for (const sx of [-1, 1]) {
-  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 12), eyeMat);
-  eye.position.set(0.15 * sx, 1.68, 0.37);
-  player.add(eye);
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 8), eyeMat);
+  eye.position.set(0.06 * sx, 0.02, 0.15);
+  headGroup.add(eye);
 }
 
-const ant = new THREE.Mesh(
-  new THREE.CylinderGeometry(0.025, 0.025, 0.35, 6),
-  new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 })
-);
-ant.position.y = 2.16;
-player.add(ant);
+// руки — группы с pivot у плеча
+function makeArm(side) {
+  const g = new THREE.Group();
+  g.position.set(0.27 * side, 1.42, 0);
 
-const bulbMat = new THREE.MeshStandardMaterial({ color: 0xff5252, emissive: 0xff1744, emissiveIntensity: 3 });
-const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.09, 14, 12), bulbMat);
-bulb.position.y = 2.36;
-player.add(bulb);
+  const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.065, 0.3, 4, 8), shirtMat);
+  upper.position.y = -0.2;
+  upper.castShadow = true;
+  g.add(upper);
 
-scene.add(player);
+  const fore = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.28, 4, 8), skinMat);
+  fore.position.y = -0.55;
+  fore.castShadow = true;
+  g.add(fore);
+
+  const hand = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 8), skinMat);
+  hand.position.y = -0.75;
+  hand.castShadow = true;
+  g.add(hand);
+
+  bodyRoot.add(g);
+  return g;
+}
+const armL = makeArm(-1);
+const armR = makeArm(1);
+
+// ноги — группы с pivot у бедра
+function makeLeg(side) {
+  const g = new THREE.Group();
+  g.position.set(0.11 * side, 0.85, 0);
+
+  const thigh = new THREE.Mesh(new THREE.CapsuleGeometry(0.085, 0.32, 4, 8), pantsMat);
+  thigh.position.y = -0.22;
+  thigh.castShadow = true;
+  g.add(thigh);
+
+  const shin = new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 0.32, 4, 8), pantsMat);
+  shin.position.y = -0.62;
+  shin.castShadow = true;
+  g.add(shin);
+
+  const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.09, 0.24), shoeMat);
+  shoe.position.set(0, -0.84, 0.03);
+  shoe.castShadow = true;
+  g.add(shoe);
+
+  bodyRoot.add(g);
+  return g;
+}
+const legL = makeLeg(-1);
+const legR = makeLeg(1);
 
 /* ==================== КУБИКИ ==================== */
 const cubeGeo = new THREE.BoxGeometry(0.65, 0.65, 0.65);
@@ -241,17 +382,27 @@ function updateScore() {
 }
 
 function spawnCubes() {
-  for (const c of cubes) scene.remove(c.mesh);
+  for (const c of cubes) {
+    scene.remove(c.mesh);
+    hitboxGroup.remove(c.hitbox);
+  }
   cubes = [];
+
   for (let i = 0; i < TOTAL_CUBES; i++) {
     const a = (i / TOTAL_CUBES) * Math.PI * 2 + Math.random() * 0.4;
     const rad = 7 + Math.random() * 18;
+    const x = Math.cos(a) * rad;
+    const z = Math.sin(a) * rad;
+
     const mesh = new THREE.Mesh(cubeGeo, cubeMat);
-    mesh.position.set(Math.cos(a) * rad, 1.0, Math.sin(a) * rad);
+    mesh.position.set(x, 1.0, z);
     mesh.castShadow = true;
     mesh.userData.phase = Math.random() * Math.PI * 2;
     scene.add(mesh);
-    cubes.push({ mesh, alive: true });
+
+    const hitbox = addHitboxSphere(x, 1.0, z, CUBE_HITBOX);
+
+    cubes.push({ mesh, hitbox, alive: true });
   }
   score = 0;
   updateScore();
@@ -322,6 +473,7 @@ let joyId = null, joyOrigin = { x: 0, y: 0 }, joyVec = { x: 0, y: 0 };
 addEventListener('pointerdown', (e) => {
   if (e.pointerType === 'mouse' || joyId !== null) return;
   if (e.clientX > innerWidth * 0.5) return;
+  if (e.target.closest('#topright')) return;
   joyId = e.pointerId;
   joyOrigin = { x: e.clientX, y: e.clientY };
   stick.style.display = 'block';
@@ -354,8 +506,40 @@ function endJoy(e) {
 addEventListener('pointerup', endJoy);
 addEventListener('pointercancel', endJoy);
 
+/* ==================== КАМЕРА / ЗУМ ==================== */
+let camDistance = 13;
+document.getElementById('zoom').addEventListener('input', (e) => {
+  const v = parseFloat(e.target.value);
+  if (!isNaN(v)) camDistance = Math.max(CAM_MIN, Math.min(CAM_MAX, v));
+});
+
+const camDesired = new THREE.Vector3();
+const lookAt = new THREE.Vector3(0, 1.2, 0);
+const tmpV = new THREE.Vector3();
+
+function updateCamera(dt) {
+  const height = camDistance * 0.55;
+  const back   = camDistance * 0.85;
+
+  camDesired.set(
+    player.position.x,
+    player.position.y + height,
+    player.position.z + back
+  );
+
+  const t = 1 - Math.exp(-5 * dt);
+  camera.position.lerp(camDesired, t);
+
+  tmpV.set(player.position.x, player.position.y + 1.2, player.position.z);
+  lookAt.lerp(tmpV, Math.min(1, t * 1.8));
+  camera.lookAt(lookAt);
+}
+
 /* ==================== ДВИЖЕНИЕ ==================== */
 const velocity = new THREE.Vector3();
+let walkPhase = 0;
+let idlePhase = 0;
+let currentSpeed01 = 0;
 
 function dampAngle(cur, target, lambda, dt) {
   let diff = (target - cur) % (Math.PI * 2);
@@ -377,6 +561,20 @@ function getInput() {
   return { x, z };
 }
 
+function resolveObstacles() {
+  for (const o of obstacles) {
+    const dx = player.position.x - o.x;
+    const dz = player.position.z - o.z;
+    const d = Math.hypot(dx, dz);
+    const min = o.radius + PLAYER_RADIUS;
+    if (d < min && d > 0.0001) {
+      const k = min / d;
+      player.position.x = o.x + dx * k;
+      player.position.z = o.z + dz * k;
+    }
+  }
+}
+
 function updatePlayer(dt) {
   const inp = getInput();
   const t = 1 - Math.exp(-ACCEL * dt);
@@ -385,6 +583,9 @@ function updatePlayer(dt) {
 
   player.position.x += velocity.x * dt;
   player.position.z += velocity.z * dt;
+  player.position.y = 0;
+
+  resolveObstacles();
 
   const d = Math.hypot(player.position.x, player.position.z);
   if (d > WORLD_RADIUS) {
@@ -393,31 +594,46 @@ function updatePlayer(dt) {
   }
 
   const sp = Math.hypot(velocity.x, velocity.z);
+  currentSpeed01 = Math.min(1, sp / SPEED);
+
   if (sp > 0.4) {
     player.rotation.y = dampAngle(player.rotation.y, Math.atan2(velocity.x, velocity.z), 12, dt);
   }
-
-  const t2 = performance.now() / 1000;
-  player.position.y = Math.abs(Math.sin(t2 * 9)) * 0.06 * Math.min(sp / SPEED, 1);
 }
 
-/* ==================== КАМЕРА ==================== */
-const CAM_OFFSET = new THREE.Vector3(0, 7.5, 11.5);
-const camDesired = new THREE.Vector3();
-const lookAt = new THREE.Vector3(0, 1.3, 0);
-const tmpV = new THREE.Vector3();
+/* ==================== АНИМАЦИИ ПЕРСОНАЖА ==================== */
+function updatePlayerAnim(dt) {
+  const s = currentSpeed01;
+  walkPhase += dt * (4 + s * 9) * s;
+  idlePhase += dt * 2;
 
-function updateCamera(dt) {
-  camDesired.copy(player.position).add(CAM_OFFSET);
-  const t = 1 - Math.exp(-5 * dt);
-  camera.position.lerp(camDesired, t);
-  tmpV.set(player.position.x, player.position.y + 1.3, player.position.z);
-  lookAt.lerp(tmpV, Math.min(1, t * 1.8));
-  camera.lookAt(lookAt);
+  const swing = Math.sin(walkPhase) * 0.75 * s;
+  const swingOpp = Math.sin(walkPhase + Math.PI) * 0.75 * s;
+
+  legL.rotation.x = swing;
+  legR.rotation.x = swingOpp;
+  armL.rotation.x = swingOpp * 0.85;
+  armR.rotation.x = swing * 0.85;
+
+  bodyRoot.rotation.z = Math.sin(walkPhase) * 0.05 * s;
+  bodyRoot.rotation.x = s * 0.08;
+  headGroup.rotation.z = Math.sin(walkPhase) * 0.05 * s;
+
+  const bob = Math.abs(Math.sin(walkPhase)) * 0.05 * s;
+  const breathe = s < 0.1 ? Math.sin(idlePhase) * 0.012 : 0;
+  bodyRoot.position.y = bob + breathe;
+
+  // легкое покачивание рук в стороны в покое
+  const idleArm = (1 - s) * Math.sin(idlePhase) * 0.04;
+  armL.rotation.z = -0.06 + idleArm;
+  armR.rotation.z =  0.06 - idleArm;
 }
 
-/* ==================== КУБИКИ: АНИМАЦИЯ И СБОР ==================== */
+/* ==================== КУБИКИ: СБОР ==================== */
 function updateCubes(dt, time) {
+  const pickupR = CUBE_HITBOX + PLAYER_RADIUS;
+  const pickupR2 = pickupR * pickupR;
+
   for (const c of cubes) {
     if (!c.alive) continue;
     c.mesh.rotation.x += dt * 1.2;
@@ -426,9 +642,10 @@ function updateCubes(dt, time) {
 
     const dx = c.mesh.position.x - player.position.x;
     const dz = c.mesh.position.z - player.position.z;
-    if (dx * dx + dz * dz < 1.4 * 1.4) {
+    if (dx * dx + dz * dz < pickupR2) {
       c.alive = false;
       scene.remove(c.mesh);
+      hitboxGroup.remove(c.hitbox);
       burst(c.mesh.position);
       score++;
       updateScore();
@@ -448,7 +665,7 @@ document.getElementById('restart').addEventListener('click', () => {
   spawnCubes();
 });
 
-/* ==================== ПОСТОБРАБОТКА (свечение) ==================== */
+/* ==================== ПОСТОБРАБОТКА ==================== */
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.55, 0.5, 0.85));
@@ -472,11 +689,10 @@ function animate() {
   elapsed += dt;
 
   updatePlayer(dt);
+  updatePlayerAnim(dt);
   updateCamera(dt);
   updateCubes(dt, elapsed);
   updateParticles(dt);
-
-  bulbMat.emissiveIntensity = 2 + Math.sin(elapsed * 4) * 1.2;
 
   composer.render();
 }
