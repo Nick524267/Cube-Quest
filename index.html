@@ -52,8 +52,39 @@
   }
   #zoom::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: #d9b45b; }
 
+  /* Хотбар */
+  #hotbar {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 6px; z-index: 6;
+  }
+  .hotbar-slot {
+    width: 52px; height: 52px;
+    border-radius: 8px;
+    border: 2px solid rgba(255,255,255,.2);
+    background: rgba(10,16,24,.6);
+    color: #fff; font-size: 26px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; user-select: none; -webkit-user-select: none;
+    position: relative; transition: all .15s ease;
+    backdrop-filter: blur(6px);
+  }
+  .hotbar-slot.disabled {
+    opacity: .3; filter: grayscale(1); cursor: not-allowed;
+  }
+  .hotbar-slot.selected {
+    border-color: #d9b45b;
+    background: rgba(217,180,91,.35);
+    box-shadow: 0 0 14px rgba(217,180,91,.5);
+    transform: translateY(-4px);
+  }
+  .hotbar-slot .num {
+    position: absolute; top: 2px; left: 4px;
+    font-size: 10px; font-weight: 700;
+    color: rgba(255,255,255,.7);
+  }
+
   #action {
-    position: fixed; bottom: 210px; left: 50%; transform: translateX(-50%);
+    position: fixed; bottom: 92px; left: 50%; transform: translateX(-50%);
     padding: 12px 20px; border-radius: 999px; border: 1px solid rgba(255,255,255,.3);
     background: rgba(10,16,24,.85); color: #fff; font-family: system-ui, sans-serif;
     font-size: 14px; font-weight: 600; display: none; z-index: 7;
@@ -61,7 +92,7 @@
   }
 
   #buildBtn {
-    position: fixed; bottom: 210px; left: 50%; transform: translateX(-50%);
+    position: fixed; bottom: 92px; left: 50%; transform: translateX(-50%);
     padding: 12px 20px; border-radius: 999px;
     border: 1px solid #d9b45b;
     background: rgba(60,40,15,.85); color: #ffd97a;
@@ -192,11 +223,12 @@
 </head>
 <body>
 
-<div id="hint">WASD — идти · Space / ↑ — прыжок · Shift / ↓ — нырять · E — действие</div>
+<div id="hint">WASD — идти · Space / ↑ — прыжок · Shift / ↓ — нырять · E — действие · 1–5 — хотбар</div>
 
 <div id="menuBtns">
   <button class="icon-btn" id="openInv" title="Инвентарь">🎒</button>
   <button class="icon-btn" id="openCraft" title="Крафт">⚒</button>
+  <button class="icon-btn" id="fsBtn" title="Полный экран">⛶</button>
 </div>
 
 <div id="topright">
@@ -205,6 +237,8 @@
 </div>
 
 <div id="oxygen"><div class="oxy-fill" id="oxyFill"></div></div>
+
+<div id="hotbar"></div>
 
 <div class="modal" id="invModal">
   <div class="modal-content">
@@ -259,6 +293,7 @@ const SEAWEED_COUNT  = 400;
 const PEBBLE_COUNT   = 400;
 const GRASS_PER_VARIANT = 5000;
 const PLAYER_RADIUS  = 0.35;
+const PLAYER_HEIGHT  = 1.7;
 const SPEED          = 10;
 const ACCEL          = 14;
 const CAM_MIN        = 8;
@@ -268,6 +303,7 @@ const GRAVITY        = 25;
 const JUMP_SPEED     = 9;
 const SWIM_SPEED_MUL = 0.55;
 const DIVE_SPEED     = 4.5;
+const SWIM_DEPTH_THRESHOLD = 1.0;  // плавать, если глубина воды > 1 м
 const OXYGEN_MAX     = 100;
 const OXYGEN_DRAIN   = 9;
 const OXYGEN_REFILL  = 35;
@@ -359,6 +395,20 @@ function fbm(x, y) {
   return v;
 }
 
+// Бесшовный шум: значение зацикливается с периодом `period`
+function valueNoiseSeamless(x, y, period) {
+  const xi = Math.floor(x), yi = Math.floor(y);
+  const xf = x - xi, yf = y - yi;
+  const x0 = ((xi % period) + period) % period;
+  const y0 = ((yi % period) + period) % period;
+  const x1 = (x0 + 1) % period;
+  const y1 = (y0 + 1) % period;
+  const a = hash(x0, y0), b = hash(x1, y0);
+  const c = hash(x0, y1), d = hash(x1, y1);
+  const u = smooth(xf), v = smooth(yf);
+  return a * (1 - u) * (1 - v) + b * u * (1 - v) + c * (1 - u) * v + d * u * v;
+}
+
 /* ==================== РЕЛЬЕФ ==================== */
 function terrainHeight(x, z) {
   const hills = (fbm(x * 0.008 + 10, z * 0.008 + 10) - 0.42) * 22;
@@ -397,6 +447,7 @@ for (let iz = 0; iz < GRID_N; iz++) {
   }
 }
 
+// ИСПРАВЛЕНО: интерполяция по тем же треугольникам, что и PlaneGeometry
 function getTerrainYAt(x, z) {
   const gx = (x + GRID_HALF) / GRID_CELL;
   const gz = (z + GRID_HALF) / GRID_CELL;
@@ -408,17 +459,22 @@ function getTerrainYAt(x, z) {
   if (iz > GRID_N - 2) iz = GRID_N - 2;
   const fx = Math.max(0, Math.min(1, gx - ix));
   const fz = Math.max(0, Math.min(1, gz - iz));
+
   const h00 = gridHeights[iz * GRID_N + ix];
   const h10 = gridHeights[iz * GRID_N + ix + 1];
   const h01 = gridHeights[(iz + 1) * GRID_N + ix];
   const h11 = gridHeights[(iz + 1) * GRID_N + ix + 1];
-  return h00 * (1 - fx) * (1 - fz)
-       + h10 * fx * (1 - fz)
-       + h01 * (1 - fx) * fz
-       + h11 * fx * fz;
+
+  if (fx + fz < 1) {
+    // T1: (0,0), (0,1), (1,0) — h00, h01, h10
+    return h00 * (1 - fx - fz) + h01 * fz + h10 * fx;
+  } else {
+    // T2: (0,1), (1,1), (1,0) — h01, h11, h10
+    return h01 * (1 - fx) + h11 * (fx + fz - 1) + h10 * (1 - fz);
+  }
 }
 
-/* ==================== HD ТЕКСТУРА ЗЕМЛИ ==================== */
+/* ==================== HD БЕСШОВНАЯ ТЕКСТУРА ЗЕМЛИ ==================== */
 function makeNoiseTexture() {
   const SIZE = 512;
   const c = document.createElement('canvas');
@@ -426,17 +482,18 @@ function makeNoiseTexture() {
   const ctx = c.getContext('2d');
   const img = ctx.createImageData(SIZE, SIZE);
 
+  const P1 = 4, P2 = 12;
+
   for (let y = 0; y < SIZE; y++) {
     for (let x = 0; x < SIZE; x++) {
       const i = (y * SIZE + x) * 4;
-      // 2 октавы шума
-      const n1 = valueNoise(x * 0.04, y * 0.04);
-      const n2 = valueNoise(x * 0.18, y * 0.18);
+      const n1 = valueNoiseSeamless(x * P1 / SIZE, y * P1 / SIZE, P1);
+      const n2 = valueNoiseSeamless(x * P2 / SIZE, y * P2 / SIZE, P2);
       const combined = n1 * 0.65 + n2 * 0.35;
-      const v = 128 + (combined - 0.5) * 180;
+      const v = 190 + combined * 65;  // 190–255 — светло, без затемнения
       img.data[i] = v;
       img.data[i + 1] = v;
-      img.data[i + 2] = v * 0.95;
+      img.data[i + 2] = v * 0.96;
       img.data[i + 3] = 255;
     }
   }
@@ -461,19 +518,20 @@ function makeWaterNormalMap() {
   const ctx = c.getContext('2d');
   const img = ctx.createImageData(SIZE, SIZE);
 
+  const P1 = 6, P2 = 16, P3 = 40;
+
   for (let y = 0; y < SIZE; y++) {
     for (let x = 0; x < SIZE; x++) {
       const i = (y * SIZE + x) * 4;
-      // 3 октавы для реалистичных волн
-      const b = valueNoise(x * 0.03, y * 0.03) * 0.5
-              + valueNoise(x * 0.08, y * 0.08) * 0.3
-              + valueNoise(x * 0.2, y * 0.2) * 0.2;
-      const nx = valueNoise((x + 1) * 0.03, y * 0.03) * 0.5
-               + valueNoise((x + 1) * 0.08, y * 0.08) * 0.3
-               + valueNoise((x + 1) * 0.2, y * 0.2) * 0.2;
-      const ny = valueNoise(x * 0.03, (y + 1) * 0.03) * 0.5
-               + valueNoise(x * 0.08, (y + 1) * 0.08) * 0.3
-               + valueNoise(x * 0.2, (y + 1) * 0.2) * 0.2;
+      const b = valueNoiseSeamless(x * P1 / SIZE, y * P1 / SIZE, P1) * 0.5
+              + valueNoiseSeamless(x * P2 / SIZE, y * P2 / SIZE, P2) * 0.3
+              + valueNoiseSeamless(x * P3 / SIZE, y * P3 / SIZE, P3) * 0.2;
+      const nx = valueNoiseSeamless((x + 1) * P1 / SIZE, y * P1 / SIZE, P1) * 0.5
+               + valueNoiseSeamless((x + 1) * P2 / SIZE, y * P2 / SIZE, P2) * 0.3
+               + valueNoiseSeamless((x + 1) * P3 / SIZE, y * P3 / SIZE, P3) * 0.2;
+      const ny = valueNoiseSeamless(x * P1 / SIZE, (y + 1) * P1 / SIZE, P1) * 0.5
+               + valueNoiseSeamless(x * P2 / SIZE, (y + 1) * P2 / SIZE, P2) * 0.3
+               + valueNoiseSeamless(x * P3 / SIZE, (y + 1) * P3 / SIZE, P3) * 0.2;
 
       img.data[i] = 128 + (nx - b) * 380;
       img.data[i + 1] = 128 + (ny - b) * 380;
@@ -563,7 +621,6 @@ function addCyl(x, z, radius) { obstacles.push({ type: 'cyl', x, z, radius }); }
 const dummy = new THREE.Object3D();
 const treeData = [];
 
-// СОСНА
 const pineTrunkMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 1, flatShading: true });
 const pineLeaf1Mat = new THREE.MeshStandardMaterial({ color: 0x2d6b3a, roughness: 0.9, flatShading: true });
 const pineLeaf2Mat = new THREE.MeshStandardMaterial({ color: 0x3f8a4a, roughness: 0.9, flatShading: true });
@@ -577,7 +634,6 @@ pineLeaf1Inst.castShadow = true;
 const pineLeaf2Inst = new THREE.InstancedMesh(pineLeaf2Geo, pineLeaf2Mat, PINE_COUNT);
 pineLeaf2Inst.castShadow = true;
 
-// ДУБ
 const oakTrunkMat = new THREE.MeshStandardMaterial({ color: 0x5a3a1e, roughness: 1, flatShading: true });
 const oakCanopyMat = new THREE.MeshStandardMaterial({ color: 0x4a7a2a, roughness: 0.9, flatShading: true });
 const oakTrunkGeo = new THREE.CylinderGeometry(0.3, 0.42, 2.2, 7);
@@ -587,7 +643,6 @@ oakTrunkInst.castShadow = true; oakTrunkInst.receiveShadow = true;
 const oakCanopyInst = new THREE.InstancedMesh(oakCanopyGeo, oakCanopyMat, OAK_COUNT);
 oakCanopyInst.castShadow = true;
 
-// БЕРЁЗА
 const birchTrunkMat = new THREE.MeshStandardMaterial({ color: 0xe8e0d0, roughness: 0.7, flatShading: true });
 const birchCanopyMat = new THREE.MeshStandardMaterial({ color: 0x8ac05a, roughness: 0.9, flatShading: true });
 const birchTrunkGeo = new THREE.CylinderGeometry(0.12, 0.16, 2.4, 6);
@@ -597,7 +652,6 @@ birchTrunkInst.castShadow = true; birchTrunkInst.receiveShadow = true;
 const birchCanopyInst = new THREE.InstancedMesh(birchCanopyGeo, birchCanopyMat, BIRCH_COUNT);
 birchCanopyInst.castShadow = true;
 
-// МАЛЕНЬКОЕ ДЕРЕВО
 const smallTreeTrunkMat = new THREE.MeshStandardMaterial({ color: 0x7a5a3a, roughness: 1, flatShading: true });
 const smallTreeLeafMat = new THREE.MeshStandardMaterial({ color: 0x4a9a5a, roughness: 0.9, flatShading: true });
 const smallTreeTrunkGeo = new THREE.CylinderGeometry(0.06, 0.1, 0.5, 5);
@@ -617,7 +671,6 @@ function randomTreePosition(minH = WATER_LEVEL + 3, maxH = 14) {
   return null;
 }
 
-// Сосны
 let pineIdx = 0;
 for (let i = 0; i < PINE_COUNT; i++) {
   const p = randomTreePosition();
@@ -625,7 +678,6 @@ for (let i = 0; i < PINE_COUNT; i++) {
   const { x, z, h } = p;
   const s = 0.8 + Math.random() * 0.9;
   const rotY = Math.random() * Math.PI * 2;
-
   dummy.position.set(x, h + 0.8 * s, z);
   dummy.rotation.set(0, rotY, 0);
   dummy.scale.set(s, s, s);
@@ -635,7 +687,6 @@ for (let i = 0; i < PINE_COUNT; i++) {
   pineLeaf1Inst.setMatrixAt(pineIdx, dummy.matrix);
   dummy.position.set(x, h + 3.2 * s, z); dummy.updateMatrix();
   pineLeaf2Inst.setMatrixAt(pineIdx, dummy.matrix);
-
   treeData.push({ x, z, y: h, hp: 10, maxHp: 10, alive: true, type: 'pine', idx: pineIdx, insts: [pineTrunkInst, pineLeaf1Inst, pineLeaf2Inst] });
   addCyl(x, z, 0.4 * s);
   pineIdx++;
@@ -647,7 +698,6 @@ for (let i = pineIdx; i < PINE_COUNT; i++) {
   pineLeaf2Inst.setMatrixAt(i, dummy.matrix);
 }
 
-// Дубы
 let oakIdx = 0;
 for (let i = 0; i < OAK_COUNT; i++) {
   const p = randomTreePosition();
@@ -655,7 +705,6 @@ for (let i = 0; i < OAK_COUNT; i++) {
   const { x, z, h } = p;
   const s = 0.9 + Math.random() * 0.7;
   const rotY = Math.random() * Math.PI * 2;
-
   dummy.position.set(x, h + 1.1 * s, z);
   dummy.rotation.set(0, rotY, 0);
   dummy.scale.set(s, s, s);
@@ -666,7 +715,6 @@ for (let i = 0; i < OAK_COUNT; i++) {
   dummy.scale.set(s, s * 1.1, s);
   dummy.updateMatrix();
   oakCanopyInst.setMatrixAt(oakIdx, dummy.matrix);
-
   treeData.push({ x, z, y: h, hp: 12, maxHp: 12, alive: true, type: 'oak', idx: oakIdx, insts: [oakTrunkInst, oakCanopyInst] });
   addCyl(x, z, 0.5 * s);
   oakIdx++;
@@ -677,7 +725,6 @@ for (let i = oakIdx; i < OAK_COUNT; i++) {
   oakCanopyInst.setMatrixAt(i, dummy.matrix);
 }
 
-// Берёзы
 let birchIdx = 0;
 for (let i = 0; i < BIRCH_COUNT; i++) {
   const p = randomTreePosition();
@@ -685,7 +732,6 @@ for (let i = 0; i < BIRCH_COUNT; i++) {
   const { x, z, h } = p;
   const s = 0.85 + Math.random() * 0.6;
   const rotY = Math.random() * Math.PI * 2;
-
   dummy.position.set(x, h + 1.2 * s, z);
   dummy.rotation.set(0, rotY, 0);
   dummy.scale.set(s, s, s);
@@ -696,7 +742,6 @@ for (let i = 0; i < BIRCH_COUNT; i++) {
   dummy.scale.set(s, s * 1.1, s);
   dummy.updateMatrix();
   birchCanopyInst.setMatrixAt(birchIdx, dummy.matrix);
-
   treeData.push({ x, z, y: h, hp: 8, maxHp: 8, alive: true, type: 'birch', idx: birchIdx, insts: [birchTrunkInst, birchCanopyInst] });
   addCyl(x, z, 0.3 * s);
   birchIdx++;
@@ -707,7 +752,6 @@ for (let i = birchIdx; i < BIRCH_COUNT; i++) {
   birchCanopyInst.setMatrixAt(i, dummy.matrix);
 }
 
-// Маленькие деревья
 let smallIdx = 0;
 for (let i = 0; i < SMALL_TREE_COUNT; i++) {
   const p = randomTreePosition(WATER_LEVEL + 2, 12);
@@ -715,7 +759,6 @@ for (let i = 0; i < SMALL_TREE_COUNT; i++) {
   const { x, z, h } = p;
   const s = 0.8 + Math.random() * 0.5;
   const rotY = Math.random() * Math.PI * 2;
-
   dummy.position.set(x, h + 0.25 * s, z);
   dummy.rotation.set(0, rotY, 0);
   dummy.scale.set(s, s, s);
@@ -723,7 +766,6 @@ for (let i = 0; i < SMALL_TREE_COUNT; i++) {
   smallTreeTrunkInst.setMatrixAt(smallIdx, dummy.matrix);
   dummy.position.set(x, h + 0.85 * s, z); dummy.updateMatrix();
   smallTreeLeafInst.setMatrixAt(smallIdx, dummy.matrix);
-
   treeData.push({ x, z, y: h, hp: 4, maxHp: 4, alive: true, type: 'small', idx: smallIdx, insts: [smallTreeTrunkInst, smallTreeLeafInst] });
   addCyl(x, z, 0.2 * s);
   smallIdx++;
@@ -776,7 +818,7 @@ for (let i = 0; i < ROCK_COUNT; i++) {
 rockInst.instanceMatrix.needsUpdate = true;
 scene.add(rockInst);
 
-/* ==================== КРЕМЕНЬ (у воды) ==================== */
+/* ==================== КРЕМЕНЬ ==================== */
 const flintGeo = new THREE.IcosahedronGeometry(0.22, 0);
 const flintMat = new THREE.MeshStandardMaterial({
   color: 0xe8e8dc, roughness: 0.4, metalness: 0.15, flatShading: true,
@@ -793,7 +835,6 @@ for (let i = 0; i < FLINT_COUNT; i++) {
     x = (Math.random() - 0.5) * (WORLD_SIZE - 40);
     z = (Math.random() - 0.5) * (WORLD_SIZE - 40);
     h = getTerrainYAt(x, z);
-    // только на самом берегу — чуть выше уровня воды
     if (h > WATER_LEVEL + 0.05 && h < WATER_LEVEL + 1.0) ok = true;
   }
   if (!ok) continue;
@@ -816,10 +857,8 @@ branchInst.castShadow = true;
 
 const branchData = [];
 for (let i = 0; i < BRANCH_COUNT; i++) {
-  // выбираем случайное дерево
   const tree = treeData[Math.floor(Math.random() * treeData.length)];
   if (!tree) continue;
-
   let x = 0, z = 0, h = 0, ok = false, attempts = 0;
   while (!ok && attempts < 15) {
     attempts++;
@@ -831,7 +870,6 @@ for (let i = 0; i < BRANCH_COUNT; i++) {
     if (h > WATER_LEVEL + 0.5) ok = true;
   }
   if (!ok) continue;
-
   dummy.position.set(x, h + 0.06, z);
   dummy.rotation.set(Math.PI / 2, Math.random() * Math.PI * 2, 0);
   dummy.scale.set(1, 1, 1);
@@ -866,11 +904,10 @@ for (let i = 0; i < SEAWEED_COUNT; i++) {
 seaweedInst.instanceMatrix.needsUpdate = true;
 scene.add(seaweedInst);
 
-/* ==================== КАМЕШКИ НА ДНЕ ==================== */
+/* ==================== КАМЕШКИ ==================== */
 const pebbleGeo = new THREE.IcosahedronGeometry(0.16, 0);
 const pebbleMat = new THREE.MeshStandardMaterial({ color: 0x9a9a8a, roughness: 0.9, flatShading: true });
 const pebbleInst = new THREE.InstancedMesh(pebbleGeo, pebbleMat, PEBBLE_COUNT);
-pebbleInst.castShadow = false;
 pebbleInst.receiveShadow = true;
 
 for (let i = 0; i < PEBBLE_COUNT; i++) {
@@ -893,7 +930,7 @@ for (let i = 0; i < PEBBLE_COUNT; i++) {
 pebbleInst.instanceMatrix.needsUpdate = true;
 scene.add(pebbleInst);
 
-/* ==================== ТРАВА (3 оттенка) ==================== */
+/* ==================== ТРАВА ==================== */
 const grassGeo = new THREE.ConeGeometry(0.08, 0.6, 3);
 grassGeo.translate(0, 0.3, 0);
 
@@ -906,8 +943,7 @@ const grassB = new THREE.InstancedMesh(grassGeo, grassMatB, GRASS_PER_VARIANT);
 const grassC = new THREE.InstancedMesh(grassGeo, grassMatC, GRASS_PER_VARIANT);
 
 function placeGrass(inst, count) {
-  let idx = 0;
-  let attempts = 0;
+  let idx = 0, attempts = 0;
   while (idx < count && attempts < count * 3) {
     attempts++;
     const x = (Math.random() - 0.5) * (WORLD_SIZE - 30);
@@ -923,22 +959,18 @@ function placeGrass(inst, count) {
     inst.setMatrixAt(idx, dummy.matrix);
     idx++;
   }
-  // спрятать остальные
   dummy.position.set(0, -9999, 0); dummy.rotation.set(0, 0, 0); dummy.scale.set(0, 0, 0); dummy.updateMatrix();
   for (let i = idx; i < count; i++) inst.setMatrixAt(i, dummy.matrix);
   inst.instanceMatrix.needsUpdate = true;
 }
-
 placeGrass(grassA, GRASS_PER_VARIANT);
 placeGrass(grassB, GRASS_PER_VARIANT);
 placeGrass(grassC, GRASS_PER_VARIANT);
-
 scene.add(grassA, grassB, grassC);
 
 /* ==================== ПЕРСОНАЖ ==================== */
 const player = new THREE.Group();
 scene.add(player);
-
 const bodyRoot = new THREE.Group();
 player.add(bodyRoot);
 
@@ -1005,34 +1037,85 @@ function makeLeg(side) {
 const legL = makeLeg(-1);
 const legR = makeLeg(1);
 
-/* ==================== ФАКЕЛ ==================== */
+/* ==================== ПРЕДМЕТЫ В РУКЕ ==================== */
+const woodMat = new THREE.MeshStandardMaterial({ color: 0x5a3a1e, roughness: 0.95, flatShading: true });
+const stoneMat = new THREE.MeshStandardMaterial({ color: 0x8a8a80, roughness: 0.9, flatShading: true });
+const flintMat2 = new THREE.MeshStandardMaterial({ color: 0xc8c8b8, roughness: 0.5, flatShading: true });
+
+// Stone axe
+const stoneAxeGroup = new THREE.Group();
+stoneAxeGroup.position.set(0, -0.75, 0.1);
+stoneAxeGroup.rotation.x = -0.2;
+stoneAxeGroup.visible = false;
+armR.add(stoneAxeGroup);
+const saHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 0.6, 5), woodMat);
+saHandle.position.y = 0.15; saHandle.castShadow = true;
+stoneAxeGroup.add(saHandle);
+const saHead = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.14, 0.08), stoneMat);
+saHead.position.set(0.1, 0.4, 0); saHead.castShadow = true;
+stoneAxeGroup.add(saHead);
+
+// Flint axe
+const flintAxeGroup = new THREE.Group();
+flintAxeGroup.position.set(0, -0.75, 0.1);
+flintAxeGroup.rotation.x = -0.2;
+flintAxeGroup.visible = false;
+armR.add(flintAxeGroup);
+const faHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 0.65, 5), woodMat);
+faHandle.position.y = 0.17; faHandle.castShadow = true;
+flintAxeGroup.add(faHandle);
+const faHead = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.16, 0.06), flintMat2);
+faHead.position.set(0.12, 0.44, 0); faHead.castShadow = true;
+flintAxeGroup.add(faHead);
+
+// Hammer
+const hammerGroup = new THREE.Group();
+hammerGroup.position.set(0, -0.75, 0.1);
+hammerGroup.rotation.x = -0.2;
+hammerGroup.visible = false;
+armR.add(hammerGroup);
+const hHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 0.55, 5), woodMat);
+hHandle.position.y = 0.15; hHandle.castShadow = true;
+hammerGroup.add(hHandle);
+const hHead = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 0.18), stoneMat);
+hHead.position.y = 0.44; hHead.castShadow = true;
+hammerGroup.add(hHead);
+
+// Torch
 const torchGroup = new THREE.Group();
 torchGroup.position.set(0, -0.75, 0.15);
 torchGroup.rotation.x = -0.3;
 torchGroup.visible = false;
 armR.add(torchGroup);
-
 const torchStick = new THREE.Mesh(
   new THREE.CylinderGeometry(0.035, 0.04, 0.55, 6),
-  new THREE.MeshStandardMaterial({ color: 0x5a3a1e, roughness: 0.95, flatShading: true })
+  woodMat
 );
-torchStick.position.y = 0.15;
-torchStick.castShadow = true;
+torchStick.position.y = 0.15; torchStick.castShadow = true;
 torchGroup.add(torchStick);
 
-const torchFlameMat = new THREE.MeshBasicMaterial({ color: 0xffaa33 });
-const torchFlame = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.3, 6), torchFlameMat);
-torchFlame.position.y = 0.55;
-torchGroup.add(torchFlame);
-
-const torchFlame2Mat = new THREE.MeshBasicMaterial({ color: 0xffd966 });
-const torchFlame2 = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.18, 6), torchFlame2Mat);
-torchFlame2.position.y = 0.58;
-torchGroup.add(torchFlame2);
+const torchFlame = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.3, 6), new THREE.MeshBasicMaterial({ color: 0xffaa33 }));
+torchFlame.position.y = 0.55; torchGroup.add(torchFlame);
+const torchFlame2 = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.18, 6), new THREE.MeshBasicMaterial({ color: 0xffd966 }));
+torchFlame2.position.y = 0.58; torchGroup.add(torchFlame2);
 
 const torchLight = new THREE.PointLight(0xff9a33, 0, 14, 1.6);
 torchLight.position.y = 0.55;
 torchGroup.add(torchLight);
+
+const HELD_ITEMS = {
+  stoneAxe: stoneAxeGroup,
+  flintAxe: flintAxeGroup,
+  hammer: hammerGroup,
+  torch: torchGroup,
+};
+
+function setHandItem(id) {
+  for (const key in HELD_ITEMS) {
+    HELD_ITEMS[key].visible = (key === id);
+  }
+  torchLight.intensity = (id === 'torch') ? 2.5 : 0;
+}
 
 /* ==================== ИНВЕНТАРЬ ==================== */
 const inv = {
@@ -1074,6 +1157,49 @@ function renderInventory() {
   }
 }
 
+/* ==================== ХОТБАР ==================== */
+const HOTBAR = [
+  { id: 'hand', label: '✋', requires: null, name: 'Рука' },
+  { id: 'stoneAxe', label: '🪓', requires: 'stoneAxe', name: 'Каменный топор' },
+  { id: 'flintAxe', label: '🪓', requires: 'flintAxe', name: 'Кремневый топор' },
+  { id: 'hammer', label: '🔨', requires: 'hammer', name: 'Молот' },
+  { id: 'torch', label: '🔥', requires: 'torch', name: 'Факел' },
+];
+let selectedSlot = 0;
+
+const hotbarEl = document.getElementById('hotbar');
+for (let i = 0; i < HOTBAR.length; i++) {
+  const slot = document.createElement('div');
+  slot.className = 'hotbar-slot';
+  slot.dataset.slot = i;
+  slot.innerHTML = `<span class="num">${i + 1}</span>${HOTBAR[i].label}`;
+  slot.addEventListener('click', () => selectSlot(i));
+  hotbarEl.appendChild(slot);
+}
+
+function isSlotAvailable(i) {
+  const req = HOTBAR[i].requires;
+  return req === null || inv[req] === true;
+}
+
+function updateHotbar() {
+  const slots = hotbarEl.querySelectorAll('.hotbar-slot');
+  slots.forEach((el, i) => {
+    el.classList.toggle('disabled', !isSlotAvailable(i));
+    el.classList.toggle('selected', i === selectedSlot);
+  });
+}
+
+function selectSlot(i) {
+  if (!isSlotAvailable(i)) return;
+  selectedSlot = i;
+  const item = HOTBAR[i].id;
+  setHandItem(item === 'hand' ? null : item);
+  updateHotbar();
+  updateBuildBtn();
+  toast(HOTBAR[i].name);
+}
+
 /* ==================== КРАФТ ==================== */
 const craftList = document.getElementById('craftList');
 
@@ -1112,16 +1238,13 @@ function doCraft(id) {
     if (inv.wood < 3 || inv.stone < 2) return toast('Не хватает ресурсов');
     inv.wood -= 3; inv.stone -= 2; inv.hammer = true;
     toast('Молот создан!'); beep(560);
-    updateBuildBtn();
   } else if (id === 'torch') {
     if (inv.torch) return toast('Уже есть');
     if (inv.wood < 1 || inv.resin < 1) return toast('Нужно 1 дерево и 1 смола');
     inv.wood -= 1; inv.resin -= 1; inv.torch = true;
-    torchGroup.visible = true;
-    torchLight.intensity = 2.5;
     toast('Факел создан!'); beep(720);
   }
-  renderInventory(); renderCraft();
+  renderInventory(); renderCraft(); updateHotbar(); updateBuildBtn();
 }
 
 /* ==================== МОДАЛЬНЫЕ ОКНА ==================== */
@@ -1151,6 +1274,15 @@ document.querySelectorAll('.modal').forEach(m => {
   m.addEventListener('click', (e) => { if (e.target === m) closeAllModals(); });
 });
 
+/* Полноэкранный режим */
+document.getElementById('fsBtn').addEventListener('click', () => {
+  if (!document.fullscreenElement) {
+    (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen)?.call(document.documentElement);
+  } else {
+    (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+  }
+});
+
 /* ==================== ДЕЙСТВИЕ ==================== */
 const actionBtn = document.getElementById('action');
 let currentAction = null;
@@ -1172,7 +1304,8 @@ const woodBlockMat = new THREE.MeshStandardMaterial({ color: 0x8a6a3a, roughness
 const woodBlockGeo = new THREE.BoxGeometry(1.5, 1.5, 1.5);
 
 function updateBuildBtn() {
-  if (inv.hammer && inv.wood > 0 && onGround && !isSwimming && !modalOpen && !currentAction) {
+  const hammerSelected = selectedSlot === 3; // молот
+  if (inv.hammer && hammerSelected && inv.wood > 0 && onGround && !isSwimming && !modalOpen && !currentAction) {
     buildBtn.style.display = 'block';
   } else {
     buildBtn.style.display = 'none';
@@ -1187,10 +1320,6 @@ buildBtn.addEventListener('click', () => {
   const fwdZ = Math.cos(player.rotation.y);
   const bx = player.position.x + fwdX * 2.0;
   const bz = player.position.z + fwdZ * 2.0;
-
-  const dToPlayer = Math.hypot(bx - player.position.x, bz - player.position.z);
-  if (dToPlayer < 1.3) return toast('Слишком близко');
-
   const by = getTerrainYAt(bx, bz);
   if (by < WATER_LEVEL - 0.5) return toast('Нельзя строить в воде');
 
@@ -1199,9 +1328,7 @@ buildBtn.addEventListener('click', () => {
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   scene.add(mesh);
-
   addCyl(bx, bz, 0.9);
-
   inv.wood -= 1;
   renderInventory();
   toast('Блок построен');
@@ -1215,7 +1342,7 @@ function toast(msg) {
   toastEl.textContent = msg;
   toastEl.style.opacity = '1';
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { toastEl.style.opacity = '0'; }, 1800);
+  toastTimer = setTimeout(() => { toastEl.style.opacity = '0'; }, 1600);
 }
 
 /* ==================== ЗВУК ==================== */
@@ -1246,6 +1373,10 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyE' && currentAction && !modalOpen) doAction();
   if (e.code === 'Space' && !modalOpen) jumpRequested = true;
   if (e.code === 'Escape') closeAllModals();
+  if (!modalOpen && e.code.startsWith('Digit')) {
+    const n = parseInt(e.code.slice(5));
+    if (n >= 1 && n <= 5) selectSlot(n - 1);
+  }
 });
 addEventListener('keyup', (e) => keys.delete(e.code));
 addEventListener('blur', () => { keys.clear(); touchDive = false; });
@@ -1265,7 +1396,7 @@ addEventListener('pointerdown', (e) => {
   if (e.pointerType === 'mouse' || joyId !== null) return;
   if (modalOpen) return;
   if (e.clientX > innerWidth * 0.5) return;
-  if (e.target.closest('#topright, #action, #jumpBtn, #diveBtn, #menuBtns, #buildBtn, .modal')) return;
+  if (e.target.closest('#topright, #action, #jumpBtn, #diveBtn, #menuBtns, #buildBtn, .modal, #hotbar')) return;
   joyId = e.pointerId;
   joyOrigin = { x: e.clientX, y: e.clientY };
   stick.style.display = 'block';
@@ -1330,6 +1461,7 @@ let isSwimming = false;
 let isUnderwater = false;
 let bodyTiltTarget = 0;
 let airborneBlend = 0;
+let runBlend = 0;
 
 player.position.set(0, getTerrainYAt(0, 0), 0);
 
@@ -1371,12 +1503,15 @@ function updatePlayer(dt) {
   const inp = getInput();
   const t = 1 - Math.exp(-ACCEL * dt);
 
-  const preGroundY = getTerrainYAt(player.position.x, player.position.z);
-  const deepWater = preGroundY < WATER_LEVEL - 0.6;
-  const belowSurface = player.position.y < WATER_LEVEL - 0.1;
-  isSwimming = deepWater && belowSurface;
+  const groundY = getTerrainYAt(player.position.x, player.position.z);
+  const waterDepth = WATER_LEVEL - groundY;
+  const canStandInWater = waterDepth < SWIM_DEPTH_THRESHOLD;
+  const inWater = player.position.y < WATER_LEVEL - 0.1;
 
-  const speedMul = isSwimming ? SWIM_SPEED_MUL : 1.0;
+  // ИСПРАВЛЕНО: плаванье по глубине воды
+  isSwimming = inWater && !canStandInWater;
+
+  const speedMul = isSwimming ? SWIM_SPEED_MUL : (inWater ? 0.7 : 1.0);
 
   velocity.x += (inp.x * SPEED * speedMul - velocity.x) * t;
   velocity.z += (inp.z * SPEED * speedMul - velocity.z) * t;
@@ -1389,12 +1524,13 @@ function updatePlayer(dt) {
   player.position.x = Math.max(-half, Math.min(half, player.position.x));
   player.position.z = Math.max(-half, Math.min(half, player.position.z));
 
-  const groundY = getTerrainYAt(player.position.x, player.position.z);
-  const waterSurface = WATER_LEVEL - 0.3;
+  const groundY2 = getTerrainYAt(player.position.x, player.position.z);
+  const waterDepth2 = WATER_LEVEL - groundY2;
+  const canStandNow = waterDepth2 < SWIM_DEPTH_THRESHOLD;
+  const inWaterNow = player.position.y < WATER_LEVEL - 0.1;
+  isSwimming = inWaterNow && !canStandNow;
 
-  const deepNow = groundY < WATER_LEVEL - 0.6;
-  const belowNow = player.position.y < WATER_LEVEL - 0.1;
-  isSwimming = deepNow && belowNow;
+  const waterSurface = WATER_LEVEL - 0.3;
 
   if (isSwimming) {
     const holdingDive = touchDive || keys.has('ShiftLeft') || keys.has('ShiftRight');
@@ -1412,8 +1548,8 @@ function updatePlayer(dt) {
 
     player.position.y += vy * dt;
 
-    if (player.position.y < groundY + 0.2) {
-      player.position.y = groundY + 0.2;
+    if (player.position.y < groundY2 + 0.2) {
+      player.position.y = groundY2 + 0.2;
       vy = Math.max(0, vy);
     }
     if (player.position.y > waterSurface && vy > 0) {
@@ -1422,6 +1558,7 @@ function updatePlayer(dt) {
     }
     onGround = false;
   } else {
+    // на земле / мелководье
     if (jumpRequested && onGround) {
       vy = JUMP_SPEED;
       onGround = false;
@@ -1431,14 +1568,14 @@ function updatePlayer(dt) {
       player.position.y += vy * dt;
     }
 
-    if (player.position.y <= groundY && vy <= 0) {
-      player.position.y = groundY;
+    if (player.position.y <= groundY2 && vy <= 0) {
+      player.position.y = groundY2;
       vy = 0;
       onGround = true;
     }
 
-    if (player.position.y < groundY - 0.01 && !onGround) {
-      player.position.y = groundY;
+    if (player.position.y < groundY2 - 0.01 && !onGround) {
+      player.position.y = groundY2;
       if (vy < 0) vy = 0;
       onGround = true;
     }
@@ -1446,7 +1583,7 @@ function updatePlayer(dt) {
 
   jumpRequested = false;
 
-  const headY = player.position.y + 1.7;
+  const headY = player.position.y + PLAYER_HEIGHT;
   isUnderwater = headY < WATER_LEVEL;
 
   if (isUnderwater) {
@@ -1467,8 +1604,8 @@ function updatePlayer(dt) {
   diveBtn.style.display = isSwimming ? 'flex' : 'none';
 }
 
-/* ==================== АНИМАЦИЯ ==================== */
-const lerp = (a, b, t) => a + (b - a) * t;
+/* ==================== АНИМАЦИЯ (УЛУЧШЕНА) ==================== */
+const lerpA = (a, b, t) => a + (b - a) * t;
 
 function updatePlayerAnim(dt) {
   const s = currentSpeed01;
@@ -1477,6 +1614,9 @@ function updatePlayerAnim(dt) {
 
   const airborneTarget = (!onGround && !isSwimming) ? 1 : 0;
   airborneBlend += (airborneTarget - airborneBlend) * (1 - Math.exp(-14 * dt));
+
+  const runTarget = s > 0.65 ? 1 : 0;
+  runBlend += (runTarget - runBlend) * (1 - Math.exp(-6 * dt));
 
   if (isSwimming) {
     bodyTiltTarget = 1.15;
@@ -1492,36 +1632,53 @@ function updatePlayerAnim(dt) {
     legL.rotation.x = kick * 0.45;
     legR.rotation.x = -kick * 0.45;
     headGroup.rotation.x = -0.6;
+    headGroup.rotation.y = 0;
   } else {
-    bodyTiltTarget = s * 0.07;
-    const swing = Math.sin(walkPhase) * 0.7 * s;
-    const swingOpp = Math.sin(walkPhase + Math.PI) * 0.7 * s;
+    // Улучшенный цикл ходьбы
+    const swing = Math.sin(walkPhase) * (0.6 + runBlend * 0.3) * s;
+    const swingOpp = Math.sin(walkPhase + Math.PI) * (0.6 + runBlend * 0.3) * s;
 
+    // В воздухе — поджатые ноги, руки вверх
     const airLeg = -0.55;
-    const airArm = -1.15;
+    const airArm = -1.15 + (vy < 0 ? 0.3 : 0);
 
-    legL.rotation.x = lerp(swing, airLeg, airborneBlend);
-    legR.rotation.x = lerp(swingOpp, airLeg - 0.1, airborneBlend);
-    armL.rotation.x = lerp(swingOpp * 0.8, airArm, airborneBlend);
-    armR.rotation.x = lerp(swing * 0.8, airArm, airborneBlend);
-    armL.rotation.z = lerp(-0.06, -0.5, airborneBlend);
-    armR.rotation.z = lerp(0.06, 0.5, airborneBlend);
-    headGroup.rotation.x = lerp(0, 0.15, airborneBlend);
+    // ИКС-позиции ног и рук с учётом blend
+    legL.rotation.x = lerpA(swing, airLeg, airborneBlend);
+    legR.rotation.x = lerpA(swingOpp, airLeg - 0.1, airborneBlend);
+    armL.rotation.x = lerpA(swingOpp * 0.8, airArm, airborneBlend);
+    armR.rotation.x = lerpA(swing * 0.8, airArm, airborneBlend);
+    armL.rotation.z = lerpA(-0.06 - runBlend * 0.15, -0.5, airborneBlend);
+    armR.rotation.z = lerpA(0.06 + runBlend * 0.15, 0.5, airborneBlend);
 
-    bodyTiltTarget = lerp(s * 0.07, 0.18, airborneBlend);
+    // Голова кивает в такт
+    const headBob = Math.sin(walkPhase * 2) * 0.03 * s;
+    headGroup.rotation.x = lerpA(headBob, 0.15, airborneBlend);
+
+    // Idle: голова осматривается
+    if (s < 0.05) {
+      headGroup.rotation.y = Math.sin(idlePhase * 0.4) * 0.25;
+    } else {
+      headGroup.rotation.y *= Math.exp(-4 * dt);
+    }
+
+    bodyTiltTarget = lerpA(s * 0.07 + runBlend * 0.05, 0.18, airborneBlend);
   }
 
   bodyRoot.rotation.x += (bodyTiltTarget - bodyRoot.rotation.x) * (1 - Math.exp(-8 * dt));
-  bodyRoot.rotation.z = Math.sin(walkPhase) * 0.05 * s;
 
-  const bob = Math.abs(Math.sin(walkPhase)) * 0.05 * s;
-  const breathe = s < 0.1 && onGround && !isSwimming ? Math.sin(idlePhase) * 0.01 : 0;
+  // Покачивание бёдрами в стороны (side sway)
+  const swayAmt = Math.sin(walkPhase) * (0.04 + runBlend * 0.03) * s;
+  bodyRoot.rotation.z = swayAmt;
+
+  // Вертикальное покачивание
+  const bob = Math.abs(Math.sin(walkPhase * 2)) * (0.04 + runBlend * 0.03) * s;
+  const breathe = s < 0.1 && onGround && !isSwimming ? Math.sin(idlePhase) * 0.012 : 0;
   bodyRoot.position.y = bob + breathe;
 }
 
-/* ==================== ФАКЕЛ МЕРЦАНИЕ ==================== */
+/* ==================== ФАКЕЛ ==================== */
 function updateTorch(time) {
-  if (!inv.torch) return;
+  if (!inv.torch || selectedSlot !== 4) return;
   const flicker = 2.3 + Math.sin(time * 18) * 0.35 + Math.sin(time * 27) * 0.2 + Math.sin(time * 9) * 0.15;
   torchLight.intensity = flicker;
   const scale = 1 + Math.sin(time * 15) * 0.08;
@@ -1561,13 +1718,9 @@ function findNearestAction() {
       bestDist = d;
       const canCut = hasAxe || tt.type === 'small';
       let label;
-      if (tt.type === 'small') {
-        label = hasAxe ? 'Рубить маленькое дерево' : 'Срубить руками';
-      } else if (hasAxe) {
-        label = 'Рубить дерево';
-      } else {
-        label = 'Нужен топор';
-      }
+      if (tt.type === 'small') label = hasAxe ? 'Рубить маленькое дерево' : 'Срубить руками';
+      else if (hasAxe) label = 'Рубить дерево';
+      else label = 'Нужен топор';
       best = { kind: canCut ? 'tree' : 'tree-noaxe', target: tt, label };
     }
   }
@@ -1593,24 +1746,20 @@ function doAction() {
     target.alive = false;
     hideInstance(rockInst, target.idx);
     inv.stone += 2 + Math.floor(Math.random() * 2);
-    renderInventory();
-    toast('+ камень'); beep(420);
+    renderInventory(); toast('+ камень'); beep(420);
   } else if (kind === 'flint') {
     target.alive = false;
     hideInstance(flintInst, target.idx);
     inv.flint += 2 + Math.floor(Math.random() * 2);
-    renderInventory();
-    toast('+ кремень'); beep(560);
+    renderInventory(); toast('+ кремень'); beep(560);
   } else if (kind === 'branch') {
     target.alive = false;
     hideInstance(branchInst, target.idx);
     inv.wood += 1 + Math.floor(Math.random() * 2);
-    renderInventory();
-    toast('+ дерево'); beep(480);
+    renderInventory(); toast('+ дерево'); beep(480);
   } else if (kind === 'tree' || kind === 'tree-noaxe') {
     if (kind === 'tree-noaxe') { toast('Сначала сделай топор'); return; }
 
-    // маленькое дерево рубится кулаком (2 урона)
     let dmg;
     if (target.type === 'small') dmg = 2;
     else dmg = inv.flintAxe ? 6 : 4;
@@ -1626,13 +1775,13 @@ function doAction() {
       if (target.type === 'small') {
         woodAmount = 2 + Math.floor(Math.random() * 2);
         resinAmount = 1 + Math.floor(Math.random() * 2);
-        toast(`Маленькое дерево срублено (+${woodAmount}🪵 +${resinAmount}🟠)`);
+        toast(`Маленькое дерево (+${woodAmount}🪵 +${resinAmount}🟠)`);
       } else {
         woodAmount = (target.type === 'oak' ? 5 : target.type === 'birch' ? 3 : 4) + Math.floor(Math.random() * 3);
         if (Math.random() < 0.6) resinAmount = 1 + Math.floor(Math.random() * 2);
         const name = target.type === 'oak' ? 'Дуб' : target.type === 'birch' ? 'Берёза' : 'Сосна';
         const resinMsg = resinAmount > 0 ? ` +${resinAmount}🟠` : '';
-        toast(`${name} срублен (+${woodAmount}🪵${resinMsg})`);
+        toast(`${name} (+${woodAmount}🪵${resinMsg})`);
       }
 
       inv.wood += woodAmount;
@@ -1647,7 +1796,7 @@ function doAction() {
   setAction(null);
 }
 
-/* ==================== КИСЛОРОД UI ==================== */
+/* ==================== КИСЛОРОД ==================== */
 const oxyEl = document.getElementById('oxygen');
 const oxyFill = document.getElementById('oxyFill');
 
@@ -1656,9 +1805,7 @@ function updateOxygenUI() {
   if (!isUnderwater) return;
   const pct = (oxygen / OXYGEN_MAX) * 100;
   oxyFill.style.width = pct + '%';
-  oxyFill.style.background = oxygen < 30
-    ? '#f44336'
-    : 'linear-gradient(90deg, #4fc3f7, #29b6f6)';
+  oxyFill.style.background = oxygen < 30 ? '#f44336' : 'linear-gradient(90deg, #4fc3f7, #29b6f6)';
 }
 
 /* ==================== ПОСТОБРАБОТКА ==================== */
@@ -1667,7 +1814,6 @@ composer.addPass(new RenderPass(scene, camera));
 composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.35, 0.6, 0.9));
 composer.addPass(new OutputPass());
 
-/* ==================== RESIZE ==================== */
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
@@ -1675,7 +1821,6 @@ addEventListener('resize', () => {
   composer.setSize(innerWidth, innerHeight);
 });
 
-/* ==================== ПОДСКАЗКА ==================== */
 const hintEl = document.getElementById('hint');
 setTimeout(() => { hintEl.style.opacity = '0'; }, 5500);
 
@@ -1730,7 +1875,8 @@ function animate() {
 
 renderInventory();
 renderCraft();
+updateHotbar();
 animate();
 </script>
 </body>
- </html>
+</html>
