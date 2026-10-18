@@ -12,22 +12,46 @@
   #hint {
     position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
     font-family: system-ui, sans-serif; font-size: 12px;
-    color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.55);
+    color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.7);
     pointer-events: none; transition: opacity 1.2s ease; z-index: 5;
+    background: rgba(0,0,0,.35); padding: 6px 12px; border-radius: 8px;
+    max-width: 90vw; text-align: center;
   }
 
   #inventory {
-    position: fixed; top: 12px; left: 12px;
-    font-family: system-ui, sans-serif; font-size: 13px; color: #fff;
-    text-shadow: 0 2px 8px rgba(0,0,0,.55);
-    pointer-events: none; z-index: 5;
-    display: flex; flex-direction: column; gap: 4px;
-    background: rgba(10,16,24,.42); padding: 8px 10px; border-radius: 10px;
-    border: 1px solid rgba(255,255,255,.12); backdrop-filter: blur(4px);
+    position: fixed; bottom: 16px; right: 16px;
+    background: rgba(10,16,24,.72);
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: 10px; padding: 8px;
+    backdrop-filter: blur(6px); z-index: 5;
+    font-family: system-ui, sans-serif;
   }
-  .inv-row { display: flex; align-items: center; gap: 6px; }
-  .inv-icon { width: 18px; text-align: center; font-size: 14px; }
-  .inv-count { opacity: .9; }
+  #invTitle {
+    font-size: 11px; color: rgba(255,255,255,.75);
+    margin-bottom: 6px; letter-spacing: .5px; text-align: center;
+  }
+  .inv-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 40px);
+    gap: 4px;
+  }
+  .inv-slot {
+    width: 40px; height: 40px;
+    background: rgba(0,0,0,.4);
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    font-size: 22px;
+    transition: background .2s ease;
+  }
+  .inv-slot .count {
+    position: absolute;
+    bottom: 2px; right: 3px;
+    font-size: 10px; font-weight: 700;
+    color: #fff;
+    text-shadow: 0 1px 2px #000;
+  }
 
   #topright {
     position: fixed; top: 12px; right: 12px;
@@ -66,7 +90,7 @@
   .craft-btn small { display: block; font-weight: 400; opacity: .75; font-size: 10px; }
 
   #action {
-    position: fixed; bottom: 110px; left: 50%; transform: translateX(-50%);
+    position: fixed; bottom: 200px; left: 50%; transform: translateX(-50%);
     padding: 12px 20px; border-radius: 999px; border: 1px solid rgba(255,255,255,.3);
     background: rgba(10,16,24,.78); color: #fff; font-family: system-ui, sans-serif;
     font-size: 14px; font-weight: 600; display: none; z-index: 7;
@@ -85,6 +109,32 @@
     transition: background .15s ease, transform .1s ease;
   }
   #jumpBtn:active { background: rgba(217,180,91,.55); transform: scale(.94); }
+
+  #diveBtn {
+    position: fixed; right: 22px; bottom: 195px;
+    width: 70px; height: 70px; border-radius: 50%;
+    border: 2px solid rgba(79,195,247,.55);
+    background: rgba(10,30,50,.6); color: #fff;
+    font-size: 28px; font-weight: 700;
+    display: none; align-items: center; justify-content: center;
+    touch-action: none; cursor: pointer; z-index: 6;
+    user-select: none; -webkit-user-select: none;
+  }
+  #diveBtn:active { background: rgba(79,195,247,.55); }
+
+  #oxygen {
+    position: fixed; bottom: 200px; left: 50%; transform: translateX(-50%);
+    width: 200px; height: 14px;
+    background: rgba(0,0,0,.55);
+    border: 1px solid rgba(255,255,255,.3);
+    border-radius: 7px; overflow: hidden;
+    display: none; z-index: 8;
+  }
+  .oxy-fill {
+    height: 100%; width: 100%;
+    background: linear-gradient(90deg, #4fc3f7, #29b6f6);
+    transition: width .08s linear, background .3s ease;
+  }
 
   #stick {
     position: fixed; left: 24px; bottom: 24px; width: 130px; height: 130px;
@@ -109,13 +159,18 @@
 </head>
 <body>
 
-<div id="hint">WASD / джойстик — движение · Space / ↑ — прыжок · E — действие</div>
-
-<div id="inventory"></div>
+<div id="hint">WASD / джойстик — движение · Space / ↑ — прыжок · Shift / ↓ — нырять · E — действие</div>
 
 <div id="topright">
   <label class="small">Обзор</label>
   <input type="range" id="zoom" min="8" max="30" step="0.5" value="16" />
+</div>
+
+<div id="oxygen"><div class="oxy-fill" id="oxyFill"></div></div>
+
+<div id="inventory">
+  <div id="invTitle">Инвентарь</div>
+  <div class="inv-grid" id="invGrid"></div>
 </div>
 
 <div id="craft">
@@ -131,6 +186,7 @@
 
 <button id="action">Подобрать</button>
 <button id="jumpBtn">↑</button>
+<button id="diveBtn">↓</button>
 <div id="toast"></div>
 <div id="stick"><div id="knob"></div></div>
 
@@ -157,6 +213,7 @@ const FOREST_COUNT   = 220;
 const ROCK_COUNT     = 70;
 const FLINT_COUNT    = 55;
 const BRANCH_COUNT   = 90;
+const SEAWEED_COUNT  = 80;
 const PLAYER_RADIUS  = 0.35;
 const SPEED          = 7.5;
 const ACCEL          = 14;
@@ -165,6 +222,11 @@ const CAM_MAX        = 30;
 const WATER_LEVEL    = -1.2;
 const GRAVITY        = 25;
 const JUMP_SPEED     = 9;
+const SWIM_SPEED_MUL = 0.55;
+const DIVE_SPEED     = 4.5;
+const OXYGEN_MAX     = 100;
+const OXYGEN_DRAIN   = 9;
+const OXYGEN_REFILL  = 35;
 
 /* ==================== РЕНДЕР ==================== */
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -215,40 +277,52 @@ function fbm(x, y) {
   let v = 0, amp = 0.5, freq = 1;
   for (let i = 0; i < 4; i++) {
     v += amp * valueNoise(x * freq, y * freq);
-    freq *= 2;
-    amp *= 0.5;
+    freq *= 2; amp *= 0.5;
   }
   return v;
 }
 
-/* ==================== РЕЛЬЕФ: ХОЛМЫ + ПОЛЯНЫ + РЕКИ ==================== */
+/* ==================== РЕЛЬЕФ ==================== */
 function terrainHeight(x, z) {
-  // базовые холмы
   const hills = (fbm(x * 0.008 + 10, z * 0.008 + 10) - 0.42) * 24;
-  // маска амплитуды — где меньше, там поляны (открытые ровные места)
   const amp = 0.35 + 0.65 * fbm(x * 0.0035 + 50, z * 0.0035 + 50);
   let h = hills * amp;
-
-  // высокочастотные мелкие неровности
   h += (fbm(x * 0.06, z * 0.06) - 0.5) * 1.4;
 
-  // река 1: извивается вдоль оси X, центр по Z
   const r1center = Math.sin(x * 0.016) * 30 + Math.cos(x * 0.005) * 20;
   const r1dist = Math.abs(z - r1center);
   const r1 = Math.max(0, 1 - r1dist / 11);
-  // река 2: поперёк, центр по X
+
   const r2center = Math.sin(z * 0.014) * 28 + Math.cos(z * 0.006) * 18;
   const r2dist = Math.abs(x - r2center);
   const r2 = Math.max(0, 1 - r2dist / 10);
 
   const riverMask = Math.max(r1, r2);
   if (riverMask > 0) {
-    // внутри реки высота ниже воды, плавно
     const k = riverMask * riverMask;
-    h = h * (1 - k * 0.95) - k * 5.5;
+    h = h * (1 - k * 0.95) - k * 6.5;
   }
 
   return h;
+}
+
+/* ==================== ТЕКСТУРА NOISE ==================== */
+function makeNoiseTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#c8c8c8';
+  ctx.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 5000; i++) {
+    const g = 140 + Math.random() * 90;
+    ctx.fillStyle = `rgb(${g},${g},${g})`;
+    ctx.fillRect(Math.random() * 256, Math.random() * 256, 1 + Math.random() * 3, 1 + Math.random() * 3);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(60, 60);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
 /* ==================== ЗЕМЛЯ ==================== */
@@ -257,10 +331,11 @@ terrainGeo.rotateX(-Math.PI / 2);
 
 const pos = terrainGeo.attributes.position;
 const colors = [];
-const cGrass  = new THREE.Color(0x5e8c3a);
-const cGrass2 = new THREE.Color(0x7aa84e);
-const cRock   = new THREE.Color(0x7a7a6e);
-const cSand   = new THREE.Color(0xb8a878);
+const cGrass  = new THREE.Color(0x74a344);
+const cGrass2 = new THREE.Color(0x94c25c);
+const cRock   = new THREE.Color(0x8a8a7e);
+const cSand   = new THREE.Color(0xd0bc84);
+const cSeabed = new THREE.Color(0x5a6a7a);
 
 for (let i = 0; i < pos.count; i++) {
   const x = pos.getX(i);
@@ -269,7 +344,8 @@ for (let i = 0; i < pos.count; i++) {
   pos.setY(i, h);
 
   let c;
-  if (h < WATER_LEVEL + 0.4) c = cSand;
+  if (h < WATER_LEVEL - 0.6) c = cSeabed;
+  else if (h < WATER_LEVEL + 0.6) c = cSand;
   else if (h > 9) c = cRock;
   else {
     const t = Math.min(1, Math.max(0, (h + 2) / 11));
@@ -283,6 +359,7 @@ terrainGeo.computeVertexNormals();
 
 const terrainMat = new THREE.MeshStandardMaterial({
   vertexColors: true,
+  map: makeNoiseTexture(),
   roughness: 0.95,
   metalness: 0.0,
   flatShading: true
@@ -297,9 +374,10 @@ waterGeo.rotateX(-Math.PI / 2);
 const waterMat = new THREE.MeshStandardMaterial({
   color: 0x2a6a8a,
   transparent: true,
-  opacity: 0.66,
+  opacity: 0.6,
   roughness: 0.15,
-  metalness: 0.6
+  metalness: 0.6,
+  side: THREE.DoubleSide
 });
 const water = new THREE.Mesh(waterGeo, waterMat);
 water.position.y = WATER_LEVEL;
@@ -338,7 +416,6 @@ for (let i = 0; i < FOREST_COUNT; i++) {
     h = terrainHeight(x, z);
     if (h > WATER_LEVEL + 0.8 && h < 12) ok = true;
   }
-
   const s = 0.8 + Math.random() * 0.9;
   const rotY = Math.random() * Math.PI * 2;
 
@@ -359,7 +436,6 @@ for (let i = 0; i < FOREST_COUNT; i++) {
   treeData.push({ x, z, hp: 10, maxHp: 10, alive: true, scale: s, idx: i });
   addCyl(x, z, 0.4 * s);
 }
-
 trunkInst.instanceMatrix.needsUpdate = true;
 leaf1Inst.instanceMatrix.needsUpdate = true;
 leaf2Inst.instanceMatrix.needsUpdate = true;
@@ -387,13 +463,12 @@ for (let i = 0; i < ROCK_COUNT; i++) {
   dummy.scale.set(s, s * 0.8, s);
   dummy.updateMatrix();
   rockInst.setMatrixAt(i, dummy.matrix);
-
   rockData.push({ x, z, y: h, alive: true, idx: i, scale: s });
 }
 rockInst.instanceMatrix.needsUpdate = true;
 scene.add(rockInst);
 
-/* ==================== КРЕМЕНЬ (у воды) ==================== */
+/* ==================== КРЕМЕНЬ ==================== */
 const flintGeo = new THREE.IcosahedronGeometry(0.22, 0);
 const flintMat = new THREE.MeshStandardMaterial({
   color: 0xe8e8dc, roughness: 0.4, metalness: 0.15, flatShading: true,
@@ -418,13 +493,12 @@ for (let i = 0; i < FLINT_COUNT; i++) {
   dummy.scale.set(s, s * 0.6, s * 1.4);
   dummy.updateMatrix();
   flintInst.setMatrixAt(i, dummy.matrix);
-
   flintData.push({ x, z, y: Math.max(h, WATER_LEVEL), alive: true, idx: i, scale: s });
 }
 flintInst.instanceMatrix.needsUpdate = true;
 scene.add(flintInst);
 
-/* ==================== ВЕТКИ (wood) ==================== */
+/* ==================== ВЕТКИ ==================== */
 const branchGeo = new THREE.CylinderGeometry(0.05, 0.07, 0.7, 5);
 const branchMat = new THREE.MeshStandardMaterial({ color: 0x5a3a1e, roughness: 1, flatShading: true });
 const branchInst = new THREE.InstancedMesh(branchGeo, branchMat, BRANCH_COUNT);
@@ -440,17 +514,39 @@ for (let i = 0; i < BRANCH_COUNT; i++) {
     h = terrainHeight(x, z);
     if (h > WATER_LEVEL + 0.6) ok = true;
   }
-  // лежит горизонтально, немного вкопан
   dummy.position.set(x, h + 0.08, z);
   dummy.rotation.set(Math.PI / 2, Math.random() * Math.PI * 2, 0);
   dummy.scale.set(1, 1, 1);
   dummy.updateMatrix();
   branchInst.setMatrixAt(i, dummy.matrix);
-
   branchData.push({ x, z, y: h, alive: true, idx: i });
 }
 branchInst.instanceMatrix.needsUpdate = true;
 scene.add(branchInst);
+
+/* ==================== ВОДОРОСЛИ ==================== */
+const seaweedGeo = new THREE.ConeGeometry(0.12, 1.2, 4);
+const seaweedMat = new THREE.MeshStandardMaterial({ color: 0x2a7a4a, roughness: 0.9, flatShading: true });
+const seaweedInst = new THREE.InstancedMesh(seaweedGeo, seaweedMat, SEAWEED_COUNT);
+
+for (let i = 0; i < SEAWEED_COUNT; i++) {
+  let x = 0, z = 0, h = 0, ok = false, attempts = 0;
+  while (!ok && attempts < 200) {
+    attempts++;
+    x = (Math.random() - 0.5) * (WORLD_SIZE - 40);
+    z = (Math.random() - 0.5) * (WORLD_SIZE - 40);
+    h = terrainHeight(x, z);
+    if (h < WATER_LEVEL - 0.5 && h > WATER_LEVEL - 6) ok = true;
+  }
+  const s = 0.7 + Math.random() * 0.7;
+  dummy.position.set(x, h + 0.6 * s, z);
+  dummy.rotation.set(0, Math.random() * Math.PI * 2, 0);
+  dummy.scale.set(s, s, s);
+  dummy.updateMatrix();
+  seaweedInst.setMatrixAt(i, dummy.matrix);
+}
+seaweedInst.instanceMatrix.needsUpdate = true;
+scene.add(seaweedInst);
 
 /* ==================== ПЕРСОНАЖ ==================== */
 const player = new THREE.Group();
@@ -523,27 +619,40 @@ const legL = makeLeg(-1);
 const legR = makeLeg(1);
 
 /* ==================== ИНВЕНТАРЬ ==================== */
-const inv = {
-  wood: 0,
-  stone: 0,
-  flint: 0,
-  stoneAxe: false,
-  flintAxe: false
-};
+const inv = { wood: 0, stone: 0, flint: 0, stoneAxe: false, flintAxe: false };
+const INV_SLOTS = 18;
 
-const invEl = document.getElementById('inventory');
+const invGrid = document.getElementById('invGrid');
+const invSlots = [];
+for (let i = 0; i < INV_SLOTS; i++) {
+  const s = document.createElement('div');
+  s.className = 'inv-slot';
+  invGrid.appendChild(s);
+  invSlots.push(s);
+}
+
 function renderInventory() {
-  invEl.innerHTML = `
-    <div class="inv-row"><span class="inv-icon">🪵</span><span class="inv-count">Дерево: ${inv.wood}</span></div>
-    <div class="inv-row"><span class="inv-icon">🪨</span><span class="inv-count">Камень: ${inv.stone}</span></div>
-    <div class="inv-row"><span class="inv-icon">⚪</span><span class="inv-count">Кремень: ${inv.flint}</span></div>
-    ${inv.stoneAxe ? '<div class="inv-row"><span class="inv-icon">🪓</span><span class="inv-count">Каменный топор</span></div>' : ''}
-    ${inv.flintAxe ? '<div class="inv-row"><span class="inv-icon">🪓</span><span class="inv-count">Кремневый топор</span></div>' : ''}
-  `;
+  const items = [];
+  if (inv.wood > 0)     items.push({ icon: '🪵', count: inv.wood,  bg: 'rgba(90,58,30,.55)' });
+  if (inv.stone > 0)    items.push({ icon: '🪨', count: inv.stone, bg: 'rgba(90,90,80,.55)' });
+  if (inv.flint > 0)    items.push({ icon: '⚪', count: inv.flint, bg: 'rgba(200,200,180,.35)' });
+  if (inv.stoneAxe)     items.push({ icon: '🪓', count: 1,         bg: 'rgba(122,90,58,.7)' });
+  if (inv.flintAxe)     items.push({ icon: '🪓', count: 1,         bg: 'rgba(180,180,180,.6)' });
+
+  for (let i = 0; i < INV_SLOTS; i++) {
+    const slot = invSlots[i];
+    if (items[i]) {
+      slot.innerHTML = items[i].icon + (items[i].count > 1 ? `<span class="count">${items[i].count}</span>` : '');
+      slot.style.background = items[i].bg;
+    } else {
+      slot.innerHTML = '';
+      slot.style.background = 'rgba(0,0,0,.4)';
+    }
+  }
 }
 renderInventory();
 
-/* ==================== UI: КРАФТ ==================== */
+/* ==================== КРАФТ ==================== */
 const craftStoneBtn = document.getElementById('craftStone');
 const craftFlintBtn = document.getElementById('craftFlint');
 
@@ -567,19 +676,20 @@ craftFlintBtn.addEventListener('click', () => {
   if (inv.wood < 4 || inv.flint < 6) return toast('Нужно 4 дерева и 6 кремня');
   inv.wood -= 4; inv.flint -= 6; inv.flintAxe = true;
   renderInventory(); updateCraftButtons();
-  toast('Кремневый топор создан! Он лучше каменного');
+  toast('Кремневый топор создан!');
   beep(680);
 });
 
-/* ==================== UI: ДЕЙСТВИЕ ==================== */
+/* ==================== ДЕЙСТВИЕ (ИСПРАВЛЕНО) ==================== */
 const actionBtn = document.getElementById('action');
 let currentAction = null;
 
-function setAction(target, label) {
-  currentAction = target ? { target, label } : null;
+// принимает объект best { kind, target, label }
+function setAction(best) {
+  currentAction = best || null;
   if (currentAction) {
     actionBtn.style.display = 'block';
-    actionBtn.textContent = label;
+    actionBtn.textContent = currentAction.label;
   } else {
     actionBtn.style.display = 'none';
   }
@@ -616,6 +726,7 @@ function beep(freq = 600) {
 /* ==================== УПРАВЛЕНИЕ ==================== */
 const keys = new Set();
 let jumpRequested = false;
+let touchDive = false;
 
 addEventListener('keydown', (e) => {
   keys.add(e.code);
@@ -624,13 +735,15 @@ addEventListener('keydown', (e) => {
   if (e.code === 'Space') jumpRequested = true;
 });
 addEventListener('keyup', (e) => keys.delete(e.code));
-addEventListener('blur', () => keys.clear());
+addEventListener('blur', () => { keys.clear(); touchDive = false; });
 
-/* кнопка прыжка */
 const jumpBtn = document.getElementById('jumpBtn');
-jumpBtn.addEventListener('pointerdown', (e) => {
-  e.preventDefault();
-  jumpRequested = true;
+jumpBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); jumpRequested = true; });
+
+const diveBtn = document.getElementById('diveBtn');
+diveBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); touchDive = true; });
+['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => {
+  diveBtn.addEventListener(ev, () => { touchDive = false; });
 });
 
 /* джойстик */
@@ -641,7 +754,7 @@ let joyId = null, joyOrigin = { x: 0, y: 0 }, joyVec = { x: 0, y: 0 };
 addEventListener('pointerdown', (e) => {
   if (e.pointerType === 'mouse' || joyId !== null) return;
   if (e.clientX > innerWidth * 0.5) return;
-  if (e.target.closest('#topright, #craft, #action, #jumpBtn')) return;
+  if (e.target.closest('#topright, #craft, #action, #jumpBtn, #diveBtn, #inventory')) return;
   joyId = e.pointerId;
   joyOrigin = { x: e.clientX, y: e.clientY };
   stick.style.display = 'block';
@@ -694,13 +807,16 @@ function updateCamera(dt) {
   camera.lookAt(lookAt);
 }
 
-/* ==================== ДВИЖЕНИЕ + ГРАВИТАЦИЯ ==================== */
+/* ==================== ФИЗИКА / ПЛАВАНИЕ ==================== */
 const velocity = new THREE.Vector3();
 let vy = 0;
 let onGround = false;
 let walkPhase = 0;
 let idlePhase = 0;
 let currentSpeed01 = 0;
+let oxygen = OXYGEN_MAX;
+let isSwimming = false;
+let isUnderwater = false;
 
 function dampAngle(cur, target, lambda, dt) {
   let diff = (target - cur) % (Math.PI * 2);
@@ -738,8 +854,16 @@ function resolveObstacles() {
 function updatePlayer(dt) {
   const inp = getInput();
   const t = 1 - Math.exp(-ACCEL * dt);
-  velocity.x += (inp.x * SPEED - velocity.x) * t;
-  velocity.z += (inp.z * SPEED - velocity.z) * t;
+
+  const groundY = terrainHeight(player.position.x, player.position.z);
+  const waterSurface = WATER_LEVEL - 0.3; // где плавает тело
+  isSwimming = player.position.y < WATER_LEVEL - 0.2;
+  isUnderwater = player.position.y < WATER_LEVEL - 0.5;
+
+  const speedMul = isSwimming ? SWIM_SPEED_MUL : 1.0;
+
+  velocity.x += (inp.x * SPEED * speedMul - velocity.x) * t;
+  velocity.z += (inp.z * SPEED * speedMul - velocity.z) * t;
 
   player.position.x += velocity.x * dt;
   player.position.z += velocity.z * dt;
@@ -750,25 +874,71 @@ function updatePlayer(dt) {
   player.position.x = Math.max(-half, Math.min(half, player.position.x));
   player.position.z = Math.max(-half, Math.min(half, player.position.z));
 
-  // земля
-  const groundY = Math.max(terrainHeight(player.position.x, player.position.z), WATER_LEVEL - 0.3);
+  const floorY = groundY + 0.3; // ниже нельзя (дно/земля)
 
-  if (onGround) {
-    player.position.y = groundY;
-    if (jumpRequested) {
-      vy = JUMP_SPEED;
-      onGround = false;
+  if (isSwimming) {
+    const holdingDive = touchDive || keys.has('ShiftLeft') || keys.has('ShiftRight');
+
+    if (oxygen <= 0) {
+      // принудительное всплытие
+      vy += (waterSurface - player.position.y) * 8 * dt;
+      vy = Math.min(vy, 5);
+    } else if (holdingDive) {
+      vy -= DIVE_SPEED * 4 * dt;
+      vy = Math.max(vy, -DIVE_SPEED);
+    } else {
+      // плавучесть тянет к поверхности
+      const depth = waterSurface - player.position.y;
+      vy += depth * 6 * dt;
+      vy = Math.min(vy, 3.5);
     }
-  } else {
-    vy -= GRAVITY * dt;
+
+    if (jumpRequested) {
+      vy = Math.max(vy, JUMP_SPEED * 0.6);
+    }
+
     player.position.y += vy * dt;
-    if (player.position.y <= groundY) {
+
+    if (player.position.y < floorY) {
+      player.position.y = floorY;
+      vy = Math.max(vy, 0);
+    }
+
+    if (player.position.y > waterSurface && vy <= 0.5) {
+      player.position.y = waterSurface;
+      vy = Math.max(vy, -0.5);
+    }
+
+    onGround = (player.position.y <= floorY + 0.05);
+    if (onGround) vy = Math.max(vy, 0);
+  } else {
+    // на земле — обычная физика
+    if (onGround) {
       player.position.y = groundY;
-      vy = 0;
-      onGround = true;
+      if (jumpRequested) {
+        vy = JUMP_SPEED;
+        onGround = false;
+      }
+    } else {
+      vy -= GRAVITY * dt;
+      player.position.y += vy * dt;
+      if (player.position.y <= groundY) {
+        player.position.y = groundY;
+        vy = 0;
+        onGround = true;
+      }
     }
   }
   jumpRequested = false;
+
+  // кислород
+  if (isUnderwater) {
+    oxygen -= OXYGEN_DRAIN * dt;
+    if (oxygen < 0) oxygen = 0;
+  } else {
+    oxygen += OXYGEN_REFILL * dt;
+    if (oxygen > OXYGEN_MAX) oxygen = OXYGEN_MAX;
+  }
 
   const sp = Math.hypot(velocity.x, velocity.z);
   currentSpeed01 = onGround ? Math.min(1, sp / SPEED) : 0;
@@ -776,6 +946,9 @@ function updatePlayer(dt) {
   if (sp > 0.4) {
     player.rotation.y = dampAngle(player.rotation.y, Math.atan2(velocity.x, velocity.z), 12, dt);
   }
+
+  // UI кнопки ныряния
+  diveBtn.style.display = isSwimming ? 'flex' : 'none';
 }
 
 /* ==================== АНИМАЦИЯ ==================== */
@@ -791,6 +964,20 @@ function updatePlayerAnim(dt) {
   legR.rotation.x = swingOpp;
   armL.rotation.x = swingOpp * 0.8;
   armR.rotation.x = swing * 0.8;
+
+  if (isSwimming) {
+    // плавательная анимация — руки гребут горизонтально
+    const t = performance.now() / 1000;
+    armL.rotation.z = -1.2 + Math.sin(t * 4) * 0.4;
+    armR.rotation.z =  1.2 - Math.sin(t * 4) * 0.4;
+    armL.rotation.x = Math.sin(t * 4) * 0.3;
+    armR.rotation.x = -Math.sin(t * 4) * 0.3;
+    legL.rotation.x = Math.sin(t * 4) * 0.3;
+    legR.rotation.x = -Math.sin(t * 4) * 0.3;
+  } else {
+    armL.rotation.z = -0.06;
+    armR.rotation.z =  0.06;
+  }
 
   bodyRoot.rotation.z = Math.sin(walkPhase) * 0.05 * s;
   bodyRoot.rotation.x = s * 0.07;
@@ -823,17 +1010,16 @@ function findNearestAction() {
     if (d < 2.0 && d < bestDist) { bestDist = d; best = { kind: 'branch', target: b, label: 'Подобрать ветку' }; }
   }
   const hasAxe = inv.stoneAxe || inv.flintAxe;
-  for (const t of treeData) {
-    if (!t.alive) continue;
-    const d = Math.hypot(px - t.x, pz - t.z);
+  for (const tt of treeData) {
+    if (!tt.alive) continue;
+    const d = Math.hypot(px - tt.x, pz - tt.z);
     if (d < 2.4 && d < bestDist) {
       bestDist = d;
-      best = { kind: hasAxe ? 'tree' : 'tree-noaxe', target: t, label: hasAxe ? 'Рубить дерево' : 'Нужен топор' };
+      best = { kind: hasAxe ? 'tree' : 'tree-noaxe', target: tt, label: hasAxe ? 'Рубить дерево' : 'Нужен топор' };
     }
   }
 
-  if (best) setAction(best.target, best.label);
-  else setAction(null, '');
+  setAction(best);
 }
 
 /* ==================== ПОДБОР / РУБКА ==================== */
@@ -876,7 +1062,6 @@ function doAction() {
     const dmg = inv.flintAxe ? 6 : 4;
     target.hp -= dmg;
     beep(inv.flintAxe ? 300 : 240);
-
     if (target.hp <= 0) {
       target.alive = false;
       hideInstance(trunkInst, target.idx);
@@ -891,7 +1076,24 @@ function doAction() {
     }
   }
 
-  setAction(null, '');
+  setAction(null);
+}
+
+/* ==================== КИСЛОРОД (UI) ==================== */
+const oxyEl = document.getElementById('oxygen');
+const oxyFill = document.getElementById('oxyFill');
+
+function updateOxygenUI() {
+  const show = isUnderwater || oxygen < OXYGEN_MAX;
+  oxyEl.style.display = show ? 'block' : 'none';
+  if (!show) return;
+  const pct = (oxygen / OXYGEN_MAX) * 100;
+  oxyFill.style.width = pct + '%';
+  if (oxygen < 30) {
+    oxyFill.style.background = '#f44336';
+  } else {
+    oxyFill.style.background = 'linear-gradient(90deg, #4fc3f7, #29b6f6)';
+  }
 }
 
 /* ==================== ПОСТОБРАБОТКА ==================== */
@@ -910,7 +1112,29 @@ addEventListener('resize', () => {
 
 /* ==================== ПОДСКАЗКА ==================== */
 const hintEl = document.getElementById('hint');
-setTimeout(() => { hintEl.style.opacity = '0'; }, 5000);
+setTimeout(() => { hintEl.style.opacity = '0'; }, 6000);
+
+/* ==================== АТМОСФЕРА ==================== */
+const FOG_AIR_COLOR = new THREE.Color(0xa8c8d8);
+const FOG_WATER_COLOR = new THREE.Color(0x1a4a6a);
+const BG_AIR = new THREE.Color(0xa8c8d8);
+const BG_WATER = new THREE.Color(0x1a4a6a);
+
+function updateAtmosphere() {
+  if (isUnderwater) {
+    scene.fog.color.copy(FOG_WATER_COLOR);
+    scene.fog.near = 3;
+    scene.fog.far = 32;
+    scene.background.copy(BG_WATER);
+    waterMat.opacity = 0.15;
+  } else {
+    scene.fog.color.copy(FOG_AIR_COLOR);
+    scene.fog.near = 70;
+    scene.fog.far = 240;
+    scene.background.copy(BG_AIR);
+    waterMat.opacity = 0.6;
+  }
+}
 
 /* ==================== ЦИКЛ ==================== */
 const SUN_OFFSET = new THREE.Vector3(35, 55, 25);
@@ -926,15 +1150,17 @@ function animate() {
   updatePlayerAnim(dt);
   updateCamera(dt);
   findNearestAction();
+  updateAtmosphere();
+  updateOxygenUI();
 
   sun.position.copy(player.position).add(SUN_OFFSET);
   sun.target.position.copy(player.position);
 
-  waterMat.opacity = 0.63 + Math.sin(elapsed * 0.8) * 0.03;
-
   composer.render();
 }
 
+renderInventory();
+updateCraftButtons();
 animate();
 </script>
 </body>
