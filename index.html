@@ -15,43 +15,24 @@
     color: #fff; text-shadow: 0 2px 8px rgba(0,0,0,.7);
     pointer-events: none; transition: opacity 1.2s ease; z-index: 5;
     background: rgba(0,0,0,.35); padding: 6px 12px; border-radius: 8px;
-    max-width: 90vw; text-align: center;
+    max-width: 80vw; text-align: center;
   }
 
-  #inventory {
-    position: fixed; bottom: 16px; right: 16px;
+  #menuBtns {
+    position: fixed; top: 12px; left: 12px;
+    display: flex; gap: 8px; z-index: 6;
+  }
+  .icon-btn {
+    width: 48px; height: 48px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,.25);
     background: rgba(10,16,24,.72);
-    border: 1px solid rgba(255,255,255,.15);
-    border-radius: 10px; padding: 8px;
-    backdrop-filter: blur(6px); z-index: 5;
-    font-family: system-ui, sans-serif;
-  }
-  #invTitle {
-    font-size: 11px; color: rgba(255,255,255,.75);
-    margin-bottom: 6px; letter-spacing: .5px; text-align: center;
-  }
-  .inv-grid {
-    display: grid;
-    grid-template-columns: repeat(6, 40px);
-    gap: 4px;
-  }
-  .inv-slot {
-    width: 40px; height: 40px;
-    background: rgba(0,0,0,.4);
-    border: 1px solid rgba(255,255,255,.1);
-    border-radius: 6px;
+    color: #fff; font-size: 22px;
+    cursor: pointer;
+    backdrop-filter: blur(6px);
     display: flex; align-items: center; justify-content: center;
-    position: relative;
-    font-size: 22px;
-    transition: background .2s ease;
   }
-  .inv-slot .count {
-    position: absolute;
-    bottom: 2px; right: 3px;
-    font-size: 10px; font-weight: 700;
-    color: #fff;
-    text-shadow: 0 1px 2px #000;
-  }
+  .icon-btn:active { background: rgba(217,180,91,.55); }
 
   #topright {
     position: fixed; top: 12px; right: 12px;
@@ -70,35 +51,19 @@
     background: #d9b45b; box-shadow: 0 2px 8px rgba(0,0,0,.5);
   }
   #zoom::-moz-range-thumb {
-    width: 18px; height: 18px; border: 0; border-radius: 50%;
-    background: #d9b45b;
+    width: 18px; height: 18px; border: 0; border-radius: 50%; background: #d9b45b;
   }
-
-  #craft {
-    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
-    display: flex; gap: 10px; z-index: 6; pointer-events: auto;
-    font-family: system-ui, sans-serif;
-  }
-  .craft-btn {
-    padding: 10px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,.25);
-    background: rgba(10, 16, 24, .72); color: #fff; font-size: 12px; font-weight: 600;
-    backdrop-filter: blur(6px); cursor: pointer; text-align: left; line-height: 1.35;
-    transition: transform .15s ease, background .15s ease;
-  }
-  .craft-btn:active { transform: scale(.96); }
-  .craft-btn.enough { border-color: #d9b45b; box-shadow: 0 0 12px rgba(217,180,91,.35); }
-  .craft-btn small { display: block; font-weight: 400; opacity: .75; font-size: 10px; }
 
   #action {
     position: fixed; bottom: 200px; left: 50%; transform: translateX(-50%);
     padding: 12px 20px; border-radius: 999px; border: 1px solid rgba(255,255,255,.3);
-    background: rgba(10,16,24,.78); color: #fff; font-family: system-ui, sans-serif;
+    background: rgba(10,16,24,.85); color: #fff; font-family: system-ui, sans-serif;
     font-size: 14px; font-weight: 600; display: none; z-index: 7;
     backdrop-filter: blur(6px); cursor: pointer;
   }
 
-  #jumpBtn {
-    position: fixed; right: 22px; bottom: 110px;
+  #jumpBtn, #diveBtn {
+    position: fixed; right: 22px;
     width: 70px; height: 70px; border-radius: 50%;
     border: 2px solid rgba(255,255,255,.35);
     background: rgba(10,16,24,.55); color: #fff;
@@ -106,28 +71,18 @@
     display: flex; align-items: center; justify-content: center;
     touch-action: none; cursor: pointer; z-index: 6;
     user-select: none; -webkit-user-select: none;
-    transition: background .15s ease, transform .1s ease;
   }
+  #jumpBtn { bottom: 110px; }
   #jumpBtn:active { background: rgba(217,180,91,.55); transform: scale(.94); }
-
-  #diveBtn {
-    position: fixed; right: 22px; bottom: 195px;
-    width: 70px; height: 70px; border-radius: 50%;
-    border: 2px solid rgba(79,195,247,.55);
-    background: rgba(10,30,50,.6); color: #fff;
-    font-size: 28px; font-weight: 700;
-    display: none; align-items: center; justify-content: center;
-    touch-action: none; cursor: pointer; z-index: 6;
-    user-select: none; -webkit-user-select: none;
-  }
+  #diveBtn { bottom: 195px; display: none; border-color: rgba(79,195,247,.55); background: rgba(10,30,50,.6); }
   #diveBtn:active { background: rgba(79,195,247,.55); }
 
   #oxygen {
     position: fixed; bottom: 200px; left: 50%; transform: translateX(-50%);
-    width: 200px; height: 14px;
+    width: 220px; height: 16px;
     background: rgba(0,0,0,.55);
     border: 1px solid rgba(255,255,255,.3);
-    border-radius: 7px; overflow: hidden;
+    border-radius: 8px; overflow: hidden;
     display: none; z-index: 8;
   }
   .oxy-fill {
@@ -155,11 +110,88 @@
     color: #fff; font-family: system-ui, sans-serif; font-size: 14px;
     opacity: 0; transition: opacity .3s ease; pointer-events: none; z-index: 20;
   }
+
+  /* Модальные окна */
+  .modal {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.6);
+    display: none; align-items: center; justify-content: center;
+    z-index: 100; backdrop-filter: blur(4px);
+  }
+  .modal.open { display: flex; }
+  .modal-content {
+    background: rgba(15,20,30,.96);
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: 14px;
+    padding: 20px 18px 18px;
+    min-width: 280px; max-width: 92vw;
+    max-height: 85vh; overflow-y: auto;
+    color: #fff; font-family: system-ui, sans-serif;
+    position: relative; box-shadow: 0 20px 60px rgba(0,0,0,.7);
+  }
+  .modal-content h2 {
+    margin: 0 0 14px; font-size: 18px; letter-spacing: .5px;
+    color: #d9b45b;
+  }
+  .modal-close {
+    position: absolute; top: 8px; right: 10px;
+    width: 34px; height: 34px;
+    border: 0; border-radius: 8px;
+    background: rgba(255,255,255,.1); color: #fff;
+    font-size: 22px; cursor: pointer; line-height: 1;
+  }
+  .modal-close:active { background: rgba(255,255,255,.3); }
+
+  .inv-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 46px);
+    gap: 6px;
+  }
+  .inv-slot {
+    width: 46px; height: 46px;
+    background: rgba(0,0,0,.45);
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    position: relative; font-size: 24px;
+  }
+  .inv-slot .count {
+    position: absolute; bottom: 2px; right: 4px;
+    font-size: 11px; font-weight: 700; color: #fff;
+    text-shadow: 0 1px 3px #000;
+  }
+
+  .craft-list { display: flex; flex-direction: column; gap: 8px; }
+  .craft-item {
+    padding: 12px 14px; border-radius: 10px;
+    border: 1px solid rgba(255,255,255,.18);
+    background: rgba(255,255,255,.05); color: #fff;
+    cursor: pointer; text-align: left; font-family: inherit; font-size: 13px;
+    transition: all .15s ease;
+  }
+  .craft-item:active { transform: scale(.97); }
+  .craft-item.enough {
+    border-color: #d9b45b;
+    background: rgba(217,180,91,.15);
+    box-shadow: 0 0 14px rgba(217,180,91,.3);
+  }
+  .craft-item.done {
+    border-color: #4caf50;
+    background: rgba(76,175,80,.15);
+    opacity: .75;
+    cursor: default;
+  }
+  .craft-item small { display: block; font-weight: 400; opacity: .7; font-size: 11px; margin-top: 3px; }
 </style>
 </head>
 <body>
 
-<div id="hint">WASD / джойстик — движение · Space / ↑ — прыжок · Shift / ↓ — нырять · E — действие</div>
+<div id="hint">WASD / джойстик — идти · Space / ↑ — прыжок · Shift / ↓ — нырять · E — действие</div>
+
+<div id="menuBtns">
+  <button class="icon-btn" id="openInv" title="Инвентарь">🎒</button>
+  <button class="icon-btn" id="openCraft" title="Крафт">⚒</button>
+</div>
 
 <div id="topright">
   <label class="small">Обзор</label>
@@ -168,20 +200,20 @@
 
 <div id="oxygen"><div class="oxy-fill" id="oxyFill"></div></div>
 
-<div id="inventory">
-  <div id="invTitle">Инвентарь</div>
-  <div class="inv-grid" id="invGrid"></div>
+<div class="modal" id="invModal">
+  <div class="modal-content">
+    <button class="modal-close" data-close>×</button>
+    <h2>Инвентарь</h2>
+    <div class="inv-grid" id="invGrid"></div>
+  </div>
 </div>
 
-<div id="craft">
-  <button class="craft-btn" id="craftStone">
-    Каменный топор
-    <small>5 дерева · 4 камня</small>
-  </button>
-  <button class="craft-btn" id="craftFlint">
-    Кремневый топор
-    <small>4 дерева · 6 кремня</small>
-  </button>
+<div class="modal" id="craftModal">
+  <div class="modal-content">
+    <button class="modal-close" data-close>×</button>
+    <h2>Крафт</h2>
+    <div class="craft-list" id="craftList"></div>
+  </div>
 </div>
 
 <button id="action">Подобрать</button>
@@ -306,22 +338,41 @@ function terrainHeight(x, z) {
   return h;
 }
 
-/* ==================== ТЕКСТУРА NOISE ==================== */
+/* ==================== ТЕКСТУРЫ ==================== */
 function makeNoiseTexture() {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 256;
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#c8c8c8';
+  ctx.fillStyle = '#b0b0b0';
   ctx.fillRect(0, 0, 256, 256);
-  for (let i = 0; i < 5000; i++) {
-    const g = 140 + Math.random() * 90;
+  for (let i = 0; i < 9000; i++) {
+    const g = 120 + Math.random() * 100;
     ctx.fillStyle = `rgb(${g},${g},${g})`;
-    ctx.fillRect(Math.random() * 256, Math.random() * 256, 1 + Math.random() * 3, 1 + Math.random() * 3);
+    const sz = Math.random() < 0.7 ? 1 : 2;
+    ctx.fillRect(Math.random() * 256, Math.random() * 256, sz, sz);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(80, 80);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function makeSandNormalMap() {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 128;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = 'rgb(128,128,255)';
+  ctx.fillRect(0, 0, 128, 128);
+  for (let i = 0; i < 3000; i++) {
+    const r = 100 + Math.random() * 55;
+    const g = 100 + Math.random() * 55;
+    ctx.fillStyle = `rgb(${r|0},${g|0},255)`;
+    ctx.fillRect(Math.random() * 128, Math.random() * 128, 1 + Math.random() * 2, 1 + Math.random() * 2);
   }
   const tex = new THREE.CanvasTexture(c);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(60, 60);
-  tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
 
@@ -334,8 +385,8 @@ const colors = [];
 const cGrass  = new THREE.Color(0x74a344);
 const cGrass2 = new THREE.Color(0x94c25c);
 const cRock   = new THREE.Color(0x8a8a7e);
-const cSand   = new THREE.Color(0xd0bc84);
-const cSeabed = new THREE.Color(0x5a6a7a);
+const cSand   = new THREE.Color(0xe0c890);
+const cSeabed = new THREE.Color(0x6a7a8a);
 
 for (let i = 0; i < pos.count; i++) {
   const x = pos.getX(i);
@@ -345,7 +396,7 @@ for (let i = 0; i < pos.count; i++) {
 
   let c;
   if (h < WATER_LEVEL - 0.6) c = cSeabed;
-  else if (h < WATER_LEVEL + 0.6) c = cSand;
+  else if (h < WATER_LEVEL + 0.8) c = cSand;
   else if (h > 9) c = cRock;
   else {
     const t = Math.min(1, Math.max(0, (h + 2) / 11));
@@ -360,6 +411,8 @@ terrainGeo.computeVertexNormals();
 const terrainMat = new THREE.MeshStandardMaterial({
   vertexColors: true,
   map: makeNoiseTexture(),
+  normalMap: makeSandNormalMap(),
+  normalScale: new THREE.Vector2(0.4, 0.4),
   roughness: 0.95,
   metalness: 0.0,
   flatShading: true
@@ -368,21 +421,51 @@ const terrain = new THREE.Mesh(terrainGeo, terrainMat);
 terrain.receiveShadow = true;
 scene.add(terrain);
 
-/* ==================== ВОДА ==================== */
-const waterGeo = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE);
+/* ==================== ВОДА С ВОЛНАМИ ==================== */
+const WATER_SEG = 60;
+const waterGeo = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE, WATER_SEG, WATER_SEG);
 waterGeo.rotateX(-Math.PI / 2);
+
+// сохраняем базовые позиции
+const waterPosAttr = waterGeo.attributes.position;
+const waterBaseX = new Float32Array(waterPosAttr.count);
+const waterBaseY = new Float32Array(waterPosAttr.count);
+const waterBaseZ = new Float32Array(waterPosAttr.count);
+for (let i = 0; i < waterPosAttr.count; i++) {
+  waterBaseX[i] = waterPosAttr.getX(i);
+  waterBaseY[i] = waterPosAttr.getY(i);
+  waterBaseZ[i] = waterPosAttr.getZ(i);
+}
+
 const waterMat = new THREE.MeshStandardMaterial({
-  color: 0x2a6a8a,
+  color: 0x3a7a9a,
   transparent: true,
-  opacity: 0.6,
-  roughness: 0.15,
-  metalness: 0.6,
-  side: THREE.DoubleSide
+  opacity: 0.72,
+  roughness: 0.12,
+  metalness: 0.65,
+  side: THREE.DoubleSide,
+  flatShading: true
 });
+
 const water = new THREE.Mesh(waterGeo, waterMat);
 water.position.y = WATER_LEVEL;
 water.receiveShadow = true;
 scene.add(water);
+
+function updateWaves(time) {
+  const pa = waterGeo.attributes.position;
+  for (let i = 0; i < pa.count; i++) {
+    const x = waterBaseX[i];
+    const z = waterBaseZ[i];
+    const wave =
+      Math.sin(x * 0.12 + time * 1.1) * 0.22 +
+      Math.sin(z * 0.15 + time * 0.85) * 0.16 +
+      Math.sin((x + z) * 0.07 + time * 1.4) * 0.12;
+    pa.setY(i, waterBaseY[i] + wave);
+  }
+  pa.needsUpdate = true;
+  waterGeo.computeVertexNormals();
+}
 
 /* ==================== ХИТБОКСЫ ==================== */
 const obstacles = [];
@@ -633,11 +716,11 @@ for (let i = 0; i < INV_SLOTS; i++) {
 
 function renderInventory() {
   const items = [];
-  if (inv.wood > 0)     items.push({ icon: '🪵', count: inv.wood,  bg: 'rgba(90,58,30,.55)' });
-  if (inv.stone > 0)    items.push({ icon: '🪨', count: inv.stone, bg: 'rgba(90,90,80,.55)' });
-  if (inv.flint > 0)    items.push({ icon: '⚪', count: inv.flint, bg: 'rgba(200,200,180,.35)' });
-  if (inv.stoneAxe)     items.push({ icon: '🪓', count: 1,         bg: 'rgba(122,90,58,.7)' });
-  if (inv.flintAxe)     items.push({ icon: '🪓', count: 1,         bg: 'rgba(180,180,180,.6)' });
+  if (inv.wood > 0)  items.push({ icon: '🪵', count: inv.wood,  bg: 'rgba(90,58,30,.55)' });
+  if (inv.stone > 0) items.push({ icon: '🪨', count: inv.stone, bg: 'rgba(90,90,80,.55)' });
+  if (inv.flint > 0) items.push({ icon: '⚪', count: inv.flint, bg: 'rgba(200,200,180,.35)' });
+  if (inv.stoneAxe)  items.push({ icon: '🪓', count: 1,         bg: 'rgba(122,90,58,.7)' });
+  if (inv.flintAxe)  items.push({ icon: '🪓', count: 1,         bg: 'rgba(180,180,180,.6)' });
 
   for (let i = 0; i < INV_SLOTS; i++) {
     const slot = invSlots[i];
@@ -646,45 +729,93 @@ function renderInventory() {
       slot.style.background = items[i].bg;
     } else {
       slot.innerHTML = '';
-      slot.style.background = 'rgba(0,0,0,.4)';
+      slot.style.background = 'rgba(0,0,0,.45)';
     }
   }
 }
-renderInventory();
 
 /* ==================== КРАФТ ==================== */
-const craftStoneBtn = document.getElementById('craftStone');
-const craftFlintBtn = document.getElementById('craftFlint');
+const craftList = document.getElementById('craftList');
 
-function updateCraftButtons() {
-  craftStoneBtn.classList.toggle('enough', inv.wood >= 5 && inv.stone >= 4 && !inv.stoneAxe);
-  craftFlintBtn.classList.toggle('enough', inv.wood >= 4 && inv.flint >= 6 && !inv.flintAxe);
+function renderCraft() {
+  const items = [
+    {
+      id: 'stoneAxe',
+      name: 'Каменный топор',
+      desc: '5 дерева · 4 камня',
+      can: inv.wood >= 5 && inv.stone >= 4,
+      done: inv.stoneAxe,
+    },
+    {
+      id: 'flintAxe',
+      name: 'Кремневый топор',
+      desc: '4 дерева · 6 кремня · рубит быстрее',
+      can: inv.wood >= 4 && inv.flint >= 6,
+      done: inv.flintAxe,
+    },
+  ];
+
+  craftList.innerHTML = items.map(it => {
+    const cls = it.done ? 'craft-item done' : (it.can ? 'craft-item enough' : 'craft-item');
+    const label = it.done ? `${it.name} — уже создан` : it.name;
+    return `<button class="${cls}" data-craft="${it.id}">${label}<small>${it.desc}</small></button>`;
+  }).join('');
+
+  craftList.querySelectorAll('[data-craft]').forEach(btn => {
+    btn.addEventListener('click', () => doCraft(btn.dataset.craft));
+  });
 }
-updateCraftButtons();
 
-craftStoneBtn.addEventListener('click', () => {
-  if (inv.stoneAxe) return toast('Каменный топор уже есть');
-  if (inv.wood < 5 || inv.stone < 4) return toast('Нужно 5 дерева и 4 камня');
-  inv.wood -= 5; inv.stone -= 4; inv.stoneAxe = true;
-  renderInventory(); updateCraftButtons();
-  toast('Каменный топор создан!');
-  beep(520);
+function doCraft(id) {
+  if (id === 'stoneAxe') {
+    if (inv.stoneAxe) return toast('Уже есть');
+    if (inv.wood < 5 || inv.stone < 4) return toast('Не хватает ресурсов');
+    inv.wood -= 5; inv.stone -= 4; inv.stoneAxe = true;
+    toast('Каменный топор создан!'); beep(520);
+  } else if (id === 'flintAxe') {
+    if (inv.flintAxe) return toast('Уже есть');
+    if (inv.wood < 4 || inv.flint < 6) return toast('Не хватает ресурсов');
+    inv.wood -= 4; inv.flint -= 6; inv.flintAxe = true;
+    toast('Кремневый топор создан!'); beep(680);
+  }
+  renderInventory(); renderCraft();
+}
+
+/* ==================== МОДАЛЬНЫЕ ОКНА ==================== */
+const invModal = document.getElementById('invModal');
+const craftModal = document.getElementById('craftModal');
+let modalOpen = false;
+
+function openModal(modal) {
+  closeAllModals();
+  modal.classList.add('open');
+  modalOpen = true;
+}
+function closeAllModals() {
+  invModal.classList.remove('open');
+  craftModal.classList.remove('open');
+  modalOpen = false;
+}
+
+document.getElementById('openInv').addEventListener('click', () => {
+  renderInventory();
+  openModal(invModal);
+});
+document.getElementById('openCraft').addEventListener('click', () => {
+  renderCraft();
+  openModal(craftModal);
+});
+document.querySelectorAll('[data-close]').forEach(b => {
+  b.addEventListener('click', closeAllModals);
+});
+document.querySelectorAll('.modal').forEach(m => {
+  m.addEventListener('click', (e) => { if (e.target === m) closeAllModals(); });
 });
 
-craftFlintBtn.addEventListener('click', () => {
-  if (inv.flintAxe) return toast('Кремневый топор уже есть');
-  if (inv.wood < 4 || inv.flint < 6) return toast('Нужно 4 дерева и 6 кремня');
-  inv.wood -= 4; inv.flint -= 6; inv.flintAxe = true;
-  renderInventory(); updateCraftButtons();
-  toast('Кремневый топор создан!');
-  beep(680);
-});
-
-/* ==================== ДЕЙСТВИЕ (ИСПРАВЛЕНО) ==================== */
+/* ==================== ДЕЙСТВИЕ ==================== */
 const actionBtn = document.getElementById('action');
 let currentAction = null;
 
-// принимает объект best { kind, target, label }
 function setAction(best) {
   currentAction = best || null;
   if (currentAction) {
@@ -731,15 +862,14 @@ let touchDive = false;
 addEventListener('keydown', (e) => {
   keys.add(e.code);
   if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
-  if (e.code === 'KeyE' && currentAction) doAction();
-  if (e.code === 'Space') jumpRequested = true;
+  if (e.code === 'KeyE' && currentAction && !modalOpen) doAction();
+  if (e.code === 'Space' && !modalOpen) jumpRequested = true;
+  if (e.code === 'Escape') closeAllModals();
 });
 addEventListener('keyup', (e) => keys.delete(e.code));
 addEventListener('blur', () => { keys.clear(); touchDive = false; });
 
-const jumpBtn = document.getElementById('jumpBtn');
-jumpBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); jumpRequested = true; });
-
+document.getElementById('jumpBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); jumpRequested = true; });
 const diveBtn = document.getElementById('diveBtn');
 diveBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); touchDive = true; });
 ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => {
@@ -753,8 +883,9 @@ let joyId = null, joyOrigin = { x: 0, y: 0 }, joyVec = { x: 0, y: 0 };
 
 addEventListener('pointerdown', (e) => {
   if (e.pointerType === 'mouse' || joyId !== null) return;
+  if (modalOpen) return;
   if (e.clientX > innerWidth * 0.5) return;
-  if (e.target.closest('#topright, #craft, #action, #jumpBtn, #diveBtn, #inventory')) return;
+  if (e.target.closest('#topright, #action, #jumpBtn, #diveBtn, #menuBtns, .modal')) return;
   joyId = e.pointerId;
   joyOrigin = { x: e.clientX, y: e.clientY };
   stick.style.display = 'block';
@@ -807,7 +938,7 @@ function updateCamera(dt) {
   camera.lookAt(lookAt);
 }
 
-/* ==================== ФИЗИКА / ПЛАВАНИЕ ==================== */
+/* ==================== ФИЗИКА ==================== */
 const velocity = new THREE.Vector3();
 let vy = 0;
 let onGround = false;
@@ -817,6 +948,7 @@ let currentSpeed01 = 0;
 let oxygen = OXYGEN_MAX;
 let isSwimming = false;
 let isUnderwater = false;
+let bodyTiltTarget = 0;
 
 function dampAngle(cur, target, lambda, dt) {
   let diff = (target - cur) % (Math.PI * 2);
@@ -826,6 +958,7 @@ function dampAngle(cur, target, lambda, dt) {
 }
 
 function getInput() {
+  if (modalOpen) return { x: 0, z: 0 };
   let x = 0, z = 0;
   if (keys.has('KeyW') || keys.has('ArrowUp'))    z -= 1;
   if (keys.has('KeyS') || keys.has('ArrowDown'))  z += 1;
@@ -855,16 +988,16 @@ function updatePlayer(dt) {
   const inp = getInput();
   const t = 1 - Math.exp(-ACCEL * dt);
 
-  const groundY = terrainHeight(player.position.x, player.position.z);
-  const waterSurface = WATER_LEVEL - 0.3; // где плавает тело
-  isSwimming = player.position.y < WATER_LEVEL - 0.2;
-  isUnderwater = player.position.y < WATER_LEVEL - 0.5;
+  // Determine swimming based on current state
+  const preGroundY = terrainHeight(player.position.x, player.position.z);
+  const deepWater = preGroundY < WATER_LEVEL - 0.6;
+  const belowSurface = player.position.y < WATER_LEVEL - 0.1;
+  isSwimming = deepWater && belowSurface;
 
   const speedMul = isSwimming ? SWIM_SPEED_MUL : 1.0;
 
   velocity.x += (inp.x * SPEED * speedMul - velocity.x) * t;
   velocity.z += (inp.z * SPEED * speedMul - velocity.z) * t;
-
   player.position.x += velocity.x * dt;
   player.position.z += velocity.z * dt;
 
@@ -874,64 +1007,72 @@ function updatePlayer(dt) {
   player.position.x = Math.max(-half, Math.min(half, player.position.x));
   player.position.z = Math.max(-half, Math.min(half, player.position.z));
 
-  const floorY = groundY + 0.3; // ниже нельзя (дно/земля)
+  // Recompute ground after move
+  const groundY = terrainHeight(player.position.x, player.position.z);
+  const waterSurface = WATER_LEVEL - 0.3;
+
+  // Re-check swimming
+  const deepNow = groundY < WATER_LEVEL - 0.6;
+  const belowNow = player.position.y < WATER_LEVEL - 0.1;
+  isSwimming = deepNow && belowNow;
 
   if (isSwimming) {
     const holdingDive = touchDive || keys.has('ShiftLeft') || keys.has('ShiftRight');
 
     if (oxygen <= 0) {
-      // принудительное всплытие
-      vy += (waterSurface - player.position.y) * 8 * dt;
-      vy = Math.min(vy, 5);
+      vy += (waterSurface - player.position.y) * 12 * dt;
     } else if (holdingDive) {
-      vy -= DIVE_SPEED * 4 * dt;
-      vy = Math.max(vy, -DIVE_SPEED);
+      vy -= DIVE_SPEED * 5 * dt;
     } else {
-      // плавучесть тянет к поверхности
-      const depth = waterSurface - player.position.y;
-      vy += depth * 6 * dt;
-      vy = Math.min(vy, 3.5);
+      vy += (waterSurface - player.position.y) * 6 * dt;
     }
+    vy = Math.max(-DIVE_SPEED, Math.min(vy, 4));
 
-    if (jumpRequested) {
-      vy = Math.max(vy, JUMP_SPEED * 0.6);
-    }
+    if (jumpRequested) vy = Math.max(vy, JUMP_SPEED * 0.5);
 
     player.position.y += vy * dt;
 
-    if (player.position.y < floorY) {
-      player.position.y = floorY;
-      vy = Math.max(vy, 0);
+    // Не проваливаться под дно
+    if (player.position.y < groundY + 0.2) {
+      player.position.y = groundY + 0.2;
+      vy = Math.max(0, vy);
     }
 
-    if (player.position.y > waterSurface && vy <= 0.5) {
+    // Не вылетать над поверхностью
+    if (player.position.y > waterSurface && vy > 0) {
       player.position.y = waterSurface;
-      vy = Math.max(vy, -0.5);
+      vy = 0;
     }
 
-    onGround = (player.position.y <= floorY + 0.05);
-    if (onGround) vy = Math.max(vy, 0);
+    onGround = false;
   } else {
-    // на земле — обычная физика
-    if (onGround) {
+    // Ходьба / падение
+    if (onGround && groundY > player.position.y - 0.3) {
       player.position.y = groundY;
       if (jumpRequested) {
         vy = JUMP_SPEED;
         onGround = false;
       }
     } else {
+      onGround = false;
       vy -= GRAVITY * dt;
       player.position.y += vy * dt;
-      if (player.position.y <= groundY) {
-        player.position.y = groundY;
-        vy = 0;
-        onGround = true;
-      }
+    }
+
+    // Абсолютная защита: никогда не ниже земли
+    if (player.position.y <= groundY) {
+      player.position.y = groundY;
+      vy = 0;
+      onGround = true;
     }
   }
+
   jumpRequested = false;
 
-  // кислород
+  // Кислород — по уровню головы
+  const headY = player.position.y + 1.7;
+  isUnderwater = headY < WATER_LEVEL;
+
   if (isUnderwater) {
     oxygen -= OXYGEN_DRAIN * dt;
     if (oxygen < 0) oxygen = 0;
@@ -947,7 +1088,6 @@ function updatePlayer(dt) {
     player.rotation.y = dampAngle(player.rotation.y, Math.atan2(velocity.x, velocity.z), 12, dt);
   }
 
-  // UI кнопки ныряния
   diveBtn.style.display = isSwimming ? 'flex' : 'none';
 }
 
@@ -957,39 +1097,56 @@ function updatePlayerAnim(dt) {
   walkPhase += dt * (4 + s * 9) * s;
   idlePhase += dt * 2;
 
-  const swing = Math.sin(walkPhase) * 0.7 * s;
-  const swingOpp = Math.sin(walkPhase + Math.PI) * 0.7 * s;
-
-  legL.rotation.x = swing;
-  legR.rotation.x = swingOpp;
-  armL.rotation.x = swingOpp * 0.8;
-  armR.rotation.x = swing * 0.8;
-
   if (isSwimming) {
-    // плавательная анимация — руки гребут горизонтально
+    // Плавание: корпус почти горизонтальный, гребём попеременно
+    bodyTiltTarget = 1.15;
     const t = performance.now() / 1000;
-    armL.rotation.z = -1.2 + Math.sin(t * 4) * 0.4;
-    armR.rotation.z =  1.2 - Math.sin(t * 4) * 0.4;
-    armL.rotation.x = Math.sin(t * 4) * 0.3;
-    armR.rotation.x = -Math.sin(t * 4) * 0.3;
-    legL.rotation.x = Math.sin(t * 4) * 0.3;
-    legR.rotation.x = -Math.sin(t * 4) * 0.3;
+    const sp = 4.5;
+
+    const pL = Math.sin(t * sp);
+    const pR = Math.sin(t * sp + Math.PI);
+
+    armL.rotation.x = pL * 1.3 + 0.3;
+    armR.rotation.x = pR * 1.3 + 0.3;
+    armL.rotation.z = -0.35;
+    armR.rotation.z = 0.35;
+
+    const kick = Math.sin(t * sp * 2);
+    legL.rotation.x = kick * 0.45;
+    legR.rotation.x = -kick * 0.45;
+
+    headGroup.rotation.x = -0.6;
   } else {
+    // Обычная ходьба
+    bodyTiltTarget = s * 0.07;
+
+    const swing = Math.sin(walkPhase) * 0.7 * s;
+    const swingOpp = Math.sin(walkPhase + Math.PI) * 0.7 * s;
+
+    legL.rotation.x = swing;
+    legR.rotation.x = swingOpp;
+    armL.rotation.x = swingOpp * 0.8;
+    armR.rotation.x = swing * 0.8;
     armL.rotation.z = -0.06;
     armR.rotation.z =  0.06;
+
+    headGroup.rotation.x = 0;
   }
 
+  // Плавный переход наклона корпуса
+  bodyRoot.rotation.x += (bodyTiltTarget - bodyRoot.rotation.x) * (1 - Math.exp(-8 * dt));
+
   bodyRoot.rotation.z = Math.sin(walkPhase) * 0.05 * s;
-  bodyRoot.rotation.x = s * 0.07;
-  headGroup.rotation.z = Math.sin(walkPhase) * 0.05 * s;
 
   const bob = Math.abs(Math.sin(walkPhase)) * 0.05 * s;
-  const breathe = s < 0.1 && onGround ? Math.sin(idlePhase) * 0.01 : 0;
+  const breathe = s < 0.1 && onGround && !isSwimming ? Math.sin(idlePhase) * 0.01 : 0;
   bodyRoot.position.y = bob + breathe;
 }
 
 /* ==================== ПОИСК ДЕЙСТВИЯ ==================== */
 function findNearestAction() {
+  if (modalOpen) { setAction(null); return; }
+
   const px = player.position.x;
   const pz = player.position.z;
   let best = null, bestDist = Infinity;
@@ -1040,21 +1197,21 @@ function doAction() {
     target.alive = false;
     hideInstance(rockInst, target.idx);
     inv.stone += 2 + Math.floor(Math.random() * 2);
-    renderInventory(); updateCraftButtons();
+    renderInventory();
     toast('+ камень');
     beep(420);
   } else if (kind === 'flint') {
     target.alive = false;
     hideInstance(flintInst, target.idx);
     inv.flint += 2 + Math.floor(Math.random() * 2);
-    renderInventory(); updateCraftButtons();
+    renderInventory();
     toast('+ кремень');
     beep(560);
   } else if (kind === 'branch') {
     target.alive = false;
     hideInstance(branchInst, target.idx);
     inv.wood += 1 + Math.floor(Math.random() * 2);
-    renderInventory(); updateCraftButtons();
+    renderInventory();
     toast('+ дерево');
     beep(480);
   } else if (kind === 'tree' || kind === 'tree-noaxe') {
@@ -1069,7 +1226,7 @@ function doAction() {
       hideInstance(leaf2Inst, target.idx);
       const amount = 3 + Math.floor(Math.random() * 3);
       inv.wood += amount;
-      renderInventory(); updateCraftButtons();
+      renderInventory();
       toast(`Дерево срублено (+${amount})`);
     } else {
       toast(inv.flintAxe ? 'Быстрый удар' : 'Медленный удар');
@@ -1079,21 +1236,18 @@ function doAction() {
   setAction(null);
 }
 
-/* ==================== КИСЛОРОД (UI) ==================== */
+/* ==================== КИСЛОРОД UI ==================== */
 const oxyEl = document.getElementById('oxygen');
 const oxyFill = document.getElementById('oxyFill');
 
 function updateOxygenUI() {
-  const show = isUnderwater || oxygen < OXYGEN_MAX;
-  oxyEl.style.display = show ? 'block' : 'none';
-  if (!show) return;
+  oxyEl.style.display = isUnderwater ? 'block' : 'none';
+  if (!isUnderwater) return;
   const pct = (oxygen / OXYGEN_MAX) * 100;
   oxyFill.style.width = pct + '%';
-  if (oxygen < 30) {
-    oxyFill.style.background = '#f44336';
-  } else {
-    oxyFill.style.background = 'linear-gradient(90deg, #4fc3f7, #29b6f6)';
-  }
+  oxyFill.style.background = oxygen < 30
+    ? '#f44336'
+    : 'linear-gradient(90deg, #4fc3f7, #29b6f6)';
 }
 
 /* ==================== ПОСТОБРАБОТКА ==================== */
@@ -1112,7 +1266,7 @@ addEventListener('resize', () => {
 
 /* ==================== ПОДСКАЗКА ==================== */
 const hintEl = document.getElementById('hint');
-setTimeout(() => { hintEl.style.opacity = '0'; }, 6000);
+setTimeout(() => { hintEl.style.opacity = '0'; }, 5000);
 
 /* ==================== АТМОСФЕРА ==================== */
 const FOG_AIR_COLOR = new THREE.Color(0xa8c8d8);
@@ -1132,7 +1286,7 @@ function updateAtmosphere() {
     scene.fog.near = 70;
     scene.fog.far = 240;
     scene.background.copy(BG_AIR);
-    waterMat.opacity = 0.6;
+    waterMat.opacity = 0.72;
   }
 }
 
@@ -1152,6 +1306,7 @@ function animate() {
   findNearestAction();
   updateAtmosphere();
   updateOxygenUI();
+  updateWaves(elapsed);
 
   sun.position.copy(player.position).add(SUN_OFFSET);
   sun.target.position.copy(player.position);
@@ -1160,7 +1315,7 @@ function animate() {
 }
 
 renderInventory();
-updateCraftButtons();
+renderCraft();
 animate();
 </script>
 </body>
