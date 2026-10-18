@@ -137,17 +137,17 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 /* ==================== НАСТРОЙКИ ==================== */
 const TOTAL_CUBES   = 15;
-const WORLD_RADIUS  = 66;    // граница мира
-const CITY_RADIUS   = 30;    // радиус города
-const FOREST_MIN    = 33;    // начало леса
-const FOREST_MAX    = 64;    // конец леса
+const WORLD_RADIUS  = 66;
+const CITY_RADIUS   = 30;
+const FOREST_MIN    = 33;
+const FOREST_MAX    = 64;
 const SPEED         = 9;
 const ACCEL         = 14;
 const PLAYER_RADIUS = 0.35;
 const CUBE_HITBOX   = 0.9;
 const CAM_MIN       = 6;
 const CAM_MAX       = 25;
-const ROAD_HALF     = 4;     // половина ширины главной дороги
+const ROAD_HALF     = 4;
 
 /* ==================== РЕНДЕР ==================== */
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -218,10 +218,8 @@ ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
 scene.add(ground);
 
-/* ==================== ХИТБОКСЫ (только логика) ==================== */
-// obstacles: { type: 'cyl', x, z, radius } | { type: 'aabb', cx, cz, hw, hd }
+/* ==================== ХИТБОКСЫ ==================== */
 const obstacles = [];
-
 function addCyl(x, z, radius) { obstacles.push({ type: 'cyl', x, z, radius }); }
 function addBox(cx, cz, hw, hd) { obstacles.push({ type: 'aabb', cx, cz, hw, hd }); }
 
@@ -235,13 +233,10 @@ function makeRoad(w, d, x, z) {
   m.receiveShadow = true;
   scene.add(m);
 }
-// главный крест
 makeRoad(ROAD_HALF * 2, CITY_RADIUS * 2, 0, 0);
 makeRoad(CITY_RADIUS * 2, ROAD_HALF * 2, 0, 0);
 
-// разметка (тонкие белые линии по центру)
 const lineMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, roughness: 0.8, emissive: 0x444444, emissiveIntensity: 0.3 });
-makeRoad(0.2, CITY_RADIUS * 2, 0, 0).parent?.remove; // dummy, не используем
 function addLine(w, d, x, z) {
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), lineMat);
   m.rotation.x = -Math.PI / 2;
@@ -251,7 +246,6 @@ function addLine(w, d, x, z) {
 addLine(0.2, CITY_RADIUS * 2, 0, 0);
 addLine(CITY_RADIUS * 2, 0.2, 0, 0);
 
-// площадь в центре
 const plaza = new THREE.Mesh(
   new THREE.CircleGeometry(7, 40),
   new THREE.MeshStandardMaterial({ color: 0x8a8a92, roughness: 0.9 })
@@ -414,7 +408,7 @@ const lightPositions = [
 ];
 for (const [x, z] of lightPositions) makeStreetLight(x, z);
 
-/* ==================== ЛЕС (InstancedMesh) ==================== */
+/* ==================== ЛЕС ==================== */
 const trunkMat  = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 1 });
 const leafMat   = new THREE.MeshStandardMaterial({ color: 0x2e8b57, roughness: 0.85 });
 const leafMat2  = new THREE.MeshStandardMaterial({ color: 0x3fa86a, roughness: 0.85 });
@@ -548,7 +542,6 @@ const scoreEl = document.getElementById('score');
 const winEl = document.getElementById('win');
 const slotEls = [];
 
-// создаём слоты инвентаря
 {
   const invSlots = document.getElementById('invSlots');
   for (let i = 0; i < TOTAL_CUBES; i++) {
@@ -784,7 +777,6 @@ function resolveObstacles() {
         player.position.x = closestX + ddx * k;
         player.position.z = closestZ + ddz * k;
       } else if (dist < 0.0001) {
-        // центр игрока внутри бокса — выталкиваем по меньшему перекрытию
         const overlapX = o.hw - Math.abs(dx);
         const overlapZ = o.hd - Math.abs(dz);
         if (overlapX < overlapZ) {
@@ -921,7 +913,6 @@ function animate() {
   updateCubes(dt, elapsed);
   updateParticles(dt);
 
-  // тени следуют за игроком
   sun.position.copy(player.position).add(SUN_OFFSET);
   sun.target.position.copy(player.position);
 
