@@ -20,22 +20,29 @@
   }
   canvas { display: block; touch-action: none; }
 
-  /* Единый стиль для всех иконок (сепия, как деревянные) */
+  #loading {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: #0a0602; color: var(--gold-bright); font-size: 18px; letter-spacing: 2px;
+    z-index: 400; flex-direction: column; gap: 20px;
+  }
+  .spinner {
+    width: 40px; height: 40px; border: 4px solid var(--wood-light);
+    border-top-color: var(--gold-bright); border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { 100% { transform: rotate(360deg); } }
+
   .ui-icon {
     font-family: 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif;
     filter: sepia(1) hue-rotate(-15deg) saturate(1.5) brightness(0.9) drop-shadow(0 2px 2px rgba(0,0,0,0.5));
-    display: inline-block;
-    font-style: normal;
-    line-height: 1;
+    display: inline-block; font-style: normal; line-height: 1;
   }
-  .ui-icon-white {
-    filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8));
-  }
+  .ui-icon-white { filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8)); }
 
   #startScreen {
     position: fixed; inset: 0;
     background: radial-gradient(circle at 50% 40%, #2a1a0e, #0a0602 70%);
-    display: flex; flex-direction: column;
+    display: none; flex-direction: column;
     align-items: center; justify-content: center;
     z-index: 500; padding: 20px; text-align: center;
   }
@@ -288,34 +295,39 @@
 </head>
 <body>
 
+<div id="loading">
+  <div class="spinner"></div>
+  <div>Генерация мира и загрузка модели...</div>
+</div>
+
 <div id="startScreen">
   <h1>VALHEIM-LIKE</h1>
   <p>Открытый мир · Выживание · Строительство</p>
   <button id="startBtn">▶ ИГРАТЬ</button>
 </div>
 
-<div id="clockBadge">
+<div id="clockBadge" style="display:none;">
   <span class="icon ui-icon-white" id="clockIcon">☀️</span>
   <span id="clockTime">06:00</span>
   <span id="weatherName" style="opacity:.8">· Ясно</span>
 </div>
 
-<div id="menuBtns">
+<div id="menuBtns" style="display:none;">
   <button class="icon-btn" id="openInv" title="Инвентарь"><span class="ui-icon">🎒</span></button>
   <button class="icon-btn" id="openCraft" title="Крафт"><span class="ui-icon">⚒</span></button>
   <button class="icon-btn" id="fsBtn" title="Полный экран"><span class="ui-icon">⛶</span></button>
   <button class="icon-btn" id="camBtn" title="Сменить вид"><span class="ui-icon">📷</span></button>
 </div>
 
-<div id="topright">
+<div id="topright" style="display:none;">
   <div class="small">Управление</div>
   <div style="font-size: 10px; opacity: 0.6; text-align: right; line-height: 1.2;">
     Свайп справа — камера<br>2 пальца — зум
   </div>
 </div>
 
-<div id="oxygen"><div class="oxy-fill" id="oxyFill"></div></div>
-<div id="hotbar"></div>
+<div id="oxygen" style="display:none;"><div class="oxy-fill" id="oxyFill"></div></div>
+<div id="hotbar" style="display:none;"></div>
 
 <div class="modal" id="invModal">
   <div class="modal-content">
@@ -345,12 +357,12 @@
   </div>
 </div>
 
-<button id="action">Подобрать</button>
-<button id="buildBtn"><span class="ui-icon">🔨</span> Строить</button>
-<button id="jumpBtn">↑</button>
-<button id="diveBtn">↓</button>
+<button id="action" style="display:none;">Подобрать</button>
+<button id="buildBtn" style="display:none;"><span class="ui-icon">🔨</span> Строить</button>
+<button id="jumpBtn" style="display:none;">↑</button>
+<button id="diveBtn" style="display:none;">↓</button>
 <div id="toast"></div>
-<div id="stick"><div id="knob"></div></div>
+<div id="stick" style="display:none;"><div id="knob"></div></div>
 
 <script type="importmap">
 {
@@ -367,27 +379,11 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-
-/* ==================== СТАРТ ==================== */
-document.getElementById('startBtn').addEventListener('click', async () => {
-  try {
-    if (document.documentElement.requestFullscreen) {
-      await document.documentElement.requestFullscreen();
-    } else if (document.documentElement.webkitRequestFullscreen) {
-      await document.documentElement.webkitRequestFullscreen();
-    }
-  } catch(e) {}
-  try {
-    if (screen.orientation && screen.orientation.lock) {
-      await screen.orientation.lock('landscape');
-    }
-  } catch(e) {}
-  document.getElementById('startScreen').style.display = 'none';
-});
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 /* ==================== НАСТРОЙКИ ==================== */
 const WORLD_SIZE     = 2520;
-const TERRAIN_SEG    = 400; // Увеличено для детализации
+const TERRAIN_SEG    = 400;
 const WATER_SEG      = 150;
 const PINE_COUNT     = 1000;
 const OAK_COUNT      = 600;
@@ -398,7 +394,7 @@ const FLINT_COUNT    = 500;
 const BRANCH_COUNT   = 900;
 const SEAWEED_COUNT  = 400;
 const PEBBLE_COUNT   = 400;
-const GRASS_PER_VARIANT = 12000; // Снижено для оптимизации
+const GRASS_PER_VARIANT = 12000;
 const RAIN_COUNT     = 600;
 const PLAYER_RADIUS  = 0.35;
 const PLAYER_HEIGHT  = 1.8;
@@ -488,7 +484,6 @@ function valueNoiseSeamless(x, y, period) {
   return a*(1-u)*(1-v)+b*u*(1-v)+c*(1-u)*v+d*u*v;
 }
 
-// Улучшенный рельеф: континенты, океаны и высокие горы
 function terrainHeight(x, z) {
   const base = fbm(x*0.001, z*0.001); 
   let h = (base - 0.45) * 60; 
@@ -631,7 +626,6 @@ const waterMat = new THREE.MeshStandardMaterial({
   depthWrite: false, flatShading: true
 });
 
-// ИСПРАВЛЕННЫЙ ШЕЙДЕР ВОДЫ (С ПЕНОЙ И ВОЛНАМИ)
 waterMat.onBeforeCompile = (shader) => {
   shader.uniforms.uTime = { value: 0 };
   shader.uniforms.uWaveHeight = { value: 0.15 };
@@ -672,7 +666,7 @@ waterGeo.rotateX(-Math.PI/2);
 const water = new THREE.Mesh(waterGeo, waterMat);
 water.position.y = WATER_LEVEL;
 water.renderOrder = 1;
-water.frustumCulled = false; // Важно, чтобы вода не исчезала
+water.frustumCulled = false;
 scene.add(water);
 
 /* ==================== ХИТБОКСЫ ==================== */
@@ -683,7 +677,6 @@ function addCyl(x, z, radius) { obstacles.push({ type: 'cyl', x, z, radius }); }
 const dummy = new THREE.Object3D();
 const treeData = [];
 
-// Увеличены сегменты для красоты
 const pineTrunkMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 1, flatShading: true });
 const pineLeaf1Mat = new THREE.MeshStandardMaterial({ color: 0x2d6b3a, roughness: 0.9, flatShading: true });
 const pineLeaf2Mat = new THREE.MeshStandardMaterial({ color: 0x3f8a4a, roughness: 0.9, flatShading: true });
@@ -700,7 +693,7 @@ pineLeaf2Inst.castShadow = true;
 const oakTrunkMat = new THREE.MeshStandardMaterial({ color: 0x5a3a1e, roughness: 1, flatShading: true });
 const oakCanopyMat = new THREE.MeshStandardMaterial({ color: 0x4a7a2a, roughness: 0.9, flatShading: true });
 const oakTrunkGeo = new THREE.CylinderGeometry(0.3, 0.42, 2.2, 12);
-const oakCanopyGeo = new THREE.IcosahedronGeometry(1.6, 3); // Округлее
+const oakCanopyGeo = new THREE.IcosahedronGeometry(1.6, 3);
 const oakTrunkInst = new THREE.InstancedMesh(oakTrunkGeo, oakTrunkMat, OAK_COUNT);
 oakTrunkInst.castShadow = true; oakTrunkInst.receiveShadow = true;
 const oakCanopyInst = new THREE.InstancedMesh(oakCanopyGeo, oakCanopyMat, OAK_COUNT);
@@ -1001,146 +994,96 @@ function updateRain(dt) {
   rainInst.instanceMatrix.needsUpdate = true;
 }
 
-/* ==================== ПЕРСОНАЖ (Красивый) ==================== */
+/* ==================== ИНИЦИАЛИЗАЦИЯ ИГРОКА ==================== */
 const player = new THREE.Group();
 scene.add(player);
-const bodyRoot = new THREE.Group();
-player.add(bodyRoot);
 
-const skinMat  = new THREE.MeshStandardMaterial({ color: 0x8F6E43, roughness: 0.6, metalness: 0.05 }); 
-const furMat   = new THREE.MeshStandardMaterial({ color: 0x4a2e15, roughness: 1, flatShading: true }); 
-const eyeWhiteMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-const eyePupilMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+let playerModel = null;
+let mixer = null;
+let actions = {};
+let activeAction = null;
 
-// --- ГОЛОВА ---
-const headGroup = new THREE.Group();
-headGroup.position.y = 1.7;
-bodyRoot.add(headGroup);
+const velocity = new THREE.Vector3();
+let vy = 0, onGround = true;
+let walkPhase = 0, idlePhase = 0;
+let currentSpeed01 = 0;
+let oxygen = OXYGEN_MAX;
+let isSwimming = false, isUnderwater = false;
+let bodyTiltTarget = 0, airborneBlend = 0, runBlend = 0, holdBlend = 0;
 
-const head = new THREE.Mesh(new THREE.SphereGeometry(0.15, 32, 32), skinMat);
-head.scale.set(0.9, 1.15, 1);
-head.castShadow = true;
-headGroup.add(head);
-
-const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.1), skinMat);
-jaw.position.set(0, -0.08, 0.05);
-headGroup.add(jaw);
-
-const nose = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.05, 0.06), skinMat);
-nose.position.set(0, 0, 0.15);
-headGroup.add(nose);
-
-for (const sx of [-1, 1]) {
-  const ear = new THREE.Mesh(new THREE.SphereGeometry(0.03, 16, 16), skinMat);
-  ear.position.set(0.14 * sx, 0, 0);
-  headGroup.add(ear);
-}
-
-for (const sx of [-1, 1]) {
-  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.02, 16, 16), eyePupilMat);
-  eye.position.set(0.06 * sx, 0.03, 0.13);
-  headGroup.add(eye);
-}
-
-const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.12, 16), skinMat);
-neck.position.y = 1.55;
-bodyRoot.add(neck);
-
-// --- ТОРС ---
-const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.18, 0.65, 32, 32), skinMat);
-torso.position.y = 1.2;
-torso.scale.set(1.2, 1, 0.7);
-torso.castShadow = true;
-bodyRoot.add(torso);
-
-for (const sx of [-1, 1]) {
-  const pec = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 16), skinMat);
-  pec.position.set(0.07 * sx, 1.38, 0.08);
-  pec.scale.set(1, 0.6, 0.6);
-  bodyRoot.add(pec);
-}
-
-const abs = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.15, 0.05), skinMat);
-abs.position.set(0, 1.1, 0.1);
-bodyRoot.add(abs);
-
-// --- ТРУСЫ ---
-const loincloth = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.19, 0.25, 32), furMat);
-loincloth.position.y = 0.85;
-loincloth.scale.set(1.1, 1, 0.8);
-loincloth.castShadow = true;
-bodyRoot.add(loincloth);
-
-// --- РУКИ ---
-function makeArm(side) {
-  const g = new THREE.Group();
-  g.position.set(0.26 * side, 1.45, 0);
-
-  const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.06, 0.28, 16, 16), skinMat);
-  upper.position.y = -0.18;
-  upper.castShadow = true;
-  g.add(upper);
-
-  const elbow = new THREE.Group();
-  elbow.position.y = -0.36;
-  g.add(elbow);
-
-  const fore = new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.26, 16, 16), skinMat);
-  fore.position.y = -0.16;
-  fore.castShadow = true;
-  elbow.add(fore);
-
-  const hand = new THREE.Group();
-  hand.position.y = -0.34;
-  elbow.add(hand);
-
-  const palm = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.1, 0.04), skinMat);
-  palm.position.y = -0.05;
-  hand.add(palm);
-  
-  // Пальцы
-  for (let i = 0; i < 3; i++) {
-    const finger = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.08, 8), skinMat);
-    finger.position.set(0, -0.1, -0.02 + i*0.02);
-    finger.rotation.x = Math.PI / 2;
-    hand.add(finger);
+// Умный поиск спавна на большой земле
+function findSpawn() {
+  for (let attempt = 0; attempt < 300; attempt++) {
+    const angle = Math.random() * Math.PI * 2;
+    const radius = 50 + Math.random() * (WORLD_SIZE * 0.4);
+    const x = Math.cos(angle) * radius;
+    const z = Math.sin(angle) * radius;
+    const h = getTerrainYAt(x, z);
+    
+    if (h < WATER_LEVEL + 5) continue; // Должно быть высоко над водой
+    
+    // Проверяем радиус 80 единиц на наличие воды (чтобы исключить острова)
+    let isMainland = true;
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const checkX = x + Math.cos(a) * 80;
+      const checkZ = z + Math.sin(a) * 80;
+      if (getTerrainYAt(checkX, checkZ) < WATER_LEVEL + 1) {
+        isMainland = false;
+        break;
+      }
+    }
+    if (isMainland) return { x, z };
   }
-
-  bodyRoot.add(g);
-  return { shoulder: g, elbow: elbow, hand: hand };
+  return { x: 0, z: 0 };
 }
-const armL = makeArm(-1);
-const armR = makeArm(1);
 
-// --- НОГИ ---
-function makeLeg(side) {
-  const g = new THREE.Group();
-  g.position.set(0.1 * side, 0.85, 0);
+// Загрузка внешней 3D-модели
+function loadPlayerModel() {
+  return new Promise((resolve) => {
+    const loader = new GLTFLoader();
+    // Используем официальную модель солдата из Three.js
+    loader.load('https://threejs.org/examples/models/gltf/Soldier.glb', (gltf) => {
+      playerModel = gltf.scene;
+      playerModel.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
+      // Масштабируем под наш мир
+      playerModel.scale.set(1.5, 1.5, 1.5);
+      player.add(playerModel);
 
-  const thigh = new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.32, 16, 16), skinMat);
-  thigh.position.y = -0.2;
-  thigh.castShadow = true;
-  g.add(thigh);
+      mixer = new THREE.AnimationMixer(playerModel);
+      gltf.animations.forEach(clip => {
+        actions[clip.name] = mixer.clipAction(clip);
+      });
 
-  const knee = new THREE.Group();
-  knee.position.y = -0.42;
-  g.add(knee);
-
-  const calf = new THREE.Mesh(new THREE.CapsuleGeometry(0.06, 0.3, 16, 16), skinMat);
-  calf.position.y = -0.18;
-  calf.castShadow = true;
-  knee.add(calf);
-
-  const foot = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.08, 0.22), skinMat);
-  foot.position.set(0, -0.38, 0.05);
-  foot.castShadow = true;
-  knee.add(foot);
-
-  bodyRoot.add(g);
-  return { hip: g, knee: knee };
+      // Запуск Idle по умолчанию
+      if (actions['Idle']) {
+        activeAction = actions['Idle'];
+        activeAction.play();
+      }
+      resolve();
+    }, undefined, (err) => {
+      console.error('Ошибка загрузки модели:', err);
+      // Fallback, если модель не загрузилась
+      const geom = new THREE.BoxGeometry(0.6, 1.8, 0.6);
+      const mat = new THREE.MeshStandardMaterial({ color: 0x8F6E43 });
+      playerModel = new THREE.Mesh(geom, mat);
+      playerModel.position.y = 0.9;
+      playerModel.castShadow = true;
+      player.add(playerModel);
+      resolve();
+    });
+  });
 }
-const legL = makeLeg(-1);
-const legR = makeLeg(1);
+
+function fadeToAction(name, duration) {
+  if (!actions[name]) return;
+  const nextAction = actions[name];
+  if (nextAction === activeAction) return;
+  
+  if (activeAction) activeAction.fadeOut(duration);
+  nextAction.reset().setEffectiveWeight(1).fadeIn(duration).play();
+  activeAction = nextAction;
+}
 
 /* ==================== ПРЕДМЕТЫ В РУКЕ ==================== */
 const woodMat = new THREE.MeshStandardMaterial({ color: 0x5a3a1e, roughness: 0.95, flatShading: true });
@@ -1148,16 +1091,19 @@ const stoneMat = new THREE.MeshStandardMaterial({ color: 0x8a8a80, roughness: 0.
 const flintMat2 = new THREE.MeshStandardMaterial({ color: 0xc8c8b8, roughness: 0.5, flatShading: true });
 const resinMat2 = new THREE.MeshStandardMaterial({ color: 0xd9922a, roughness: 0.4, metalness: 0.2, flatShading: true, emissive: 0x552200, emissiveIntensity: 0.4 });
 const HELD_ITEMS = {};
+let handBone = null;
 
 function makeHeldItem() {
   const g = new THREE.Group();
-  g.position.set(0, -0.05, 0.04);
+  g.position.set(0, 0, 0.1);
   g.rotation.x = -Math.PI / 2;
   g.visible = false;
-  armR.hand.add(g);
+  // Привязываем к игроку, смещая вправо и вперед
+  player.add(g); 
   return g;
 }
 
+// Создание предметов
 {
   const g = makeHeldItem();
   const h = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 0.6, 12), woodMat); h.position.y = 0.15; h.castShadow = true; g.add(h);
@@ -1207,7 +1153,14 @@ let torchLight, torchFlame, torchFlame2;
 }
 
 function setHandItem(id) {
-  for (const key in HELD_ITEMS) HELD_ITEMS[key].visible = (key === id);
+  for (const key in HELD_ITEMS) {
+    HELD_ITEMS[key].visible = (key === id);
+    if (key === id) {
+      // Позиция в руке относительно игрока (если нет кости)
+      HELD_ITEMS[key].position.set(0.4, 1.2, 0.4);
+      HELD_ITEMS[key].rotation.set(0, 0, 0);
+    }
+  }
   if (torchLight) torchLight.intensity = (id === 'torch') ? 2.5 : 0;
 }
 
@@ -1278,7 +1231,7 @@ function removeItem(id, count) {
   }
 }
 
-/* ==================== UI: ХОТБАР ==================== */
+/* ==================== UI: ХОТБАР / ИНВЕНТАРЬ ==================== */
 const hotbarEl = document.getElementById('hotbar');
 function renderOutsideHotbar() {
   hotbarEl.innerHTML = '';
@@ -1298,10 +1251,8 @@ function renderOutsideHotbar() {
   }
 }
 
-/* ==================== UI: ИНВЕНТАРЬ ==================== */
 const invGrid = document.getElementById('invGrid');
 const hotbarMGrid = document.getElementById('hotbarMGrid');
-
 let dragState = null;
 
 function attachDrag(slotEl, fromType, index) {
@@ -1309,10 +1260,7 @@ function attachDrag(slotEl, fromType, index) {
     e.preventDefault(); e.stopPropagation();
     const arr = fromType === 'inv' ? inventory : hotbar;
     if (!arr[index]) return;
-    dragState = {
-      from: fromType, index, startX: e.clientX, startY: e.clientY,
-      moved: false, item: { ...arr[index] }
-    };
+    dragState = { from: fromType, index, startX: e.clientX, startY: e.clientY, moved: false };
     const ghost = document.createElement('div');
     ghost.className = 'drag-ghost';
     ghost.innerHTML = ITEM_DEFS[arr[index].id].icon;
@@ -1323,16 +1271,12 @@ function attachDrag(slotEl, fromType, index) {
     window.addEventListener('pointerup', onDragUp);
   });
 }
-
 function onDragMove(e) {
   if (!dragState) return;
-  const dx = e.clientX - dragState.startX;
-  const dy = e.clientY - dragState.startY;
-  if (Math.hypot(dx, dy) > 5) dragState.moved = true;
+  if (Math.hypot(e.clientX - dragState.startX, e.clientY - dragState.startY) > 5) dragState.moved = true;
   dragState.ghostEl.style.left = e.clientX + 'px';
   dragState.ghostEl.style.top = e.clientY + 'px';
 }
-
 function onDragUp(e) {
   if (!dragState) return;
   window.removeEventListener('pointermove', onDragMove);
@@ -1354,7 +1298,6 @@ function onDragUp(e) {
   }
   dragState = null;
 }
-
 function moveItem(fromType, fromIdx, toType, toIdx) {
   const fromArr = fromType === 'inv' ? inventory : hotbar;
   const toArr = toType === 'inv' ? inventory : hotbar;
@@ -1371,7 +1314,6 @@ function moveItem(fromType, fromIdx, toType, toIdx) {
   refreshUI();
   updateBuildBtn();
 }
-
 function renderInventoryModal() {
   invGrid.innerHTML = '';
   for (let i = 0; i < INV_SLOTS; i++) {
@@ -1390,7 +1332,6 @@ function renderInventoryModal() {
     invGrid.appendChild(slot);
   }
 }
-
 function renderHotbarModal() {
   hotbarMGrid.innerHTML = '';
   for (let i = 0; i < HOTBAR_SLOTS; i++) {
@@ -1410,23 +1351,17 @@ function renderHotbarModal() {
     hotbarMGrid.appendChild(slot);
   }
 }
-
 function refreshUI() {
   renderOutsideHotbar();
-  if (modalOpen) {
-    renderInventoryModal();
-    renderHotbarModal();
-  }
+  if (modalOpen) { renderInventoryModal(); renderHotbarModal(); }
 }
 
-/* ==================== SELECT / HAND ==================== */
 function selectSlot(i) {
   if (i < 0 || i >= HOTBAR_SLOTS) return;
   if (!hotbar[i]) {
     selectedSlot = -1;
     setHandItem(null);
-    refreshUI();
-    updateBuildBtn();
+    refreshUI(); updateBuildBtn();
     return;
   }
   if (i === selectedSlot) {
@@ -1441,7 +1376,7 @@ function selectSlot(i) {
   updateBuildBtn();
 }
 
-/* ==================== КРАФТ ==================== */
+/* ==================== КРАФТ / СТРОИТЕЛЬСТВО ==================== */
 const craftList = document.getElementById('craftList');
 function renderCraft() {
   const items = [
@@ -1482,42 +1417,6 @@ function doCraft(id) {
   renderCraft();
 }
 
-/* ==================== МОДАЛЬНЫЕ ОКНА ==================== */
-const invModal = document.getElementById('invModal');
-const craftModal = document.getElementById('craftModal');
-const buildModal = document.getElementById('buildModal');
-let modalOpen = false;
-function openModal(m) {
-  closeAllModals();
-  m.classList.add('open');
-  modalOpen = true;
-  if (m === invModal) { renderInventoryModal(); renderHotbarModal(); }
-}
-function closeAllModals() {
-  invModal.classList.remove('open');
-  craftModal.classList.remove('open');
-  buildModal.classList.remove('open');
-  modalOpen = false;
-}
-document.getElementById('openInv').addEventListener('click', () => openModal(invModal));
-document.getElementById('openCraft').addEventListener('click', () => { renderCraft(); openModal(craftModal); });
-document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeAllModals));
-document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => { if (e.target === m) closeAllModals(); }));
-
-document.getElementById('fsBtn').addEventListener('click', async () => {
-  try {
-    if (!document.fullscreenElement) {
-      await document.documentElement.requestFullscreen();
-      if (screen.orientation && screen.orientation.lock) {
-        try { await screen.orientation.lock('landscape'); } catch(e) {}
-      }
-    } else {
-      await document.exitFullscreen();
-    }
-  } catch(e) {}
-});
-
-/* ==================== СТРОИТЕЛЬСТВО ==================== */
 const BUILD_PIECES = {
   floor_wood: { cat: 'floor', label: 'Деревянный пол', icon: '<span class="ui-icon">▭</span>', size: [2, 0.2, 2], yOff: 0.1, cost: { wood: 1 }, color: 0x8a6a3a },
   floor_stone: { cat: 'floor', label: 'Каменный пол', icon: '<span class="ui-icon">▭</span>', size: [2, 0.2, 2], yOff: 0.1, cost: { stone: 2 }, color: 0x8a8a7e },
@@ -1600,7 +1499,7 @@ function placeCurrentPiece() {
   updateGhostPosition();
 }
 
-/* ==================== ДЕЙСТВИЕ ==================== */
+/* ==================== ДЕЙСТВИЕ / UI ==================== */
 const actionBtn = document.getElementById('action');
 let currentAction = null;
 function setAction(best) {
@@ -1610,7 +1509,6 @@ function setAction(best) {
 }
 actionBtn.addEventListener('click', () => { if (currentAction) doAction(); });
 
-/* ==================== TOAST / ЗВУК ==================== */
 const toastEl = document.getElementById('toast');
 let toastTimer = null;
 function toast(msg) {
@@ -1661,7 +1559,7 @@ diveBtnEl.addEventListener('pointerdown', e => { e.preventDefault(); touchDive =
 const isFirstPerson = { value: false };
 document.getElementById('camBtn').addEventListener('click', () => {
   isFirstPerson.value = !isFirstPerson.value;
-  player.visible = !isFirstPerson.value;
+  if (playerModel) playerModel.visible = !isFirstPerson.value;
   toast(isFirstPerson.value ? 'Вид от 1-го лица' : 'Вид от 3-го лица');
 });
 
@@ -1681,14 +1579,9 @@ addEventListener('pointerdown', e => {
     if (camTouchId === null) {
       camTouchId = e.pointerId;
       camTouchStart = { x: e.clientX, y: e.clientY };
-    } else {
-      const dx = e.clientX - camTouchStart.x;
-      const dy = e.clientY - camTouchStart.y;
-      pinchDist = Math.hypot(dx, dy);
     }
   }
 });
-
 addEventListener('pointermove', e => {
   if (e.pointerId === camTouchId) {
     const dx = e.clientX - camTouchStart.x;
@@ -1699,12 +1592,8 @@ addEventListener('pointermove', e => {
     camTouchStart = { x: e.clientX, y: e.clientY };
   }
 });
-
 function endCamTouch(e) {
-  if (e.pointerId === camTouchId) {
-    camTouchId = null;
-    pinchDist = 0;
-  }
+  if (e.pointerId === camTouchId) camTouchId = null;
 }
 addEventListener('pointerup', endCamTouch);
 addEventListener('pointercancel', endCamTouch);
@@ -1717,7 +1606,6 @@ addEventListener('touchstart', e => {
     pinchDist = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY);
   }
 }, {passive: false});
-
 addEventListener('touchmove', e => {
   for (let t of e.changedTouches) {
     if (touchPointers[t.identifier]) touchPointers[t.identifier] = t;
@@ -1733,7 +1621,6 @@ addEventListener('touchmove', e => {
     e.preventDefault();
   }
 }, {passive: false});
-
 addEventListener('touchend', e => {
   for (let t of e.changedTouches) delete touchPointers[t.identifier];
   if (Object.keys(touchPointers).length < 2) pinchDist = 0;
@@ -1774,10 +1661,9 @@ function endJoy(e) {
 addEventListener('pointerup', endJoy);
 addEventListener('pointercancel', endJoy);
 
-/* ==================== ОБНОВЛЕНИЕ КАМЕРЫ ==================== */
+/* ==================== ОБНОВЛЕНИЕ ИГРОКА ==================== */
 const camDesired = new THREE.Vector3();
 const lookAt = new THREE.Vector3();
-const tmpV = new THREE.Vector3();
 const euler = new THREE.Euler(0, 0, 0, 'YXZ');
 
 function updateCamera(dt) {
@@ -1806,26 +1692,6 @@ function updateCamera(dt) {
     camera.lookAt(lookAt);
   }
 }
-
-/* ==================== ФИЗИКА ==================== */
-const velocity = new THREE.Vector3();
-let vy = 0, onGround = true;
-let walkPhase = 0, idlePhase = 0;
-let currentSpeed01 = 0;
-let oxygen = OXYGEN_MAX;
-let isSwimming = false, isUnderwater = false;
-let bodyTiltTarget = 0, airborneBlend = 0, runBlend = 0, holdBlend = 0;
-
-function findSpawn() {
-  if (getTerrainYAt(0, 0) > WATER_LEVEL + 2) return { x: 0, z: 0 };
-  for (let r = 5; r < 300; r += 5) for (let a = 0; a < Math.PI * 2; a += 0.3) {
-    const x = Math.cos(a) * r, z = Math.sin(a) * r;
-    if (getTerrainYAt(x, z) > WATER_LEVEL + 2) return { x, z };
-  }
-  return { x: 0, z: 0 };
-}
-const spawn = findSpawn();
-player.position.set(spawn.x, getTerrainYAt(spawn.x, spawn.z), spawn.z);
 
 function dampAngle(cur, target, lambda, dt) {
   let diff = (target - cur) % (Math.PI * 2);
@@ -1937,73 +1803,42 @@ function updatePlayer(dt) {
   diveBtnEl.style.display = isSwimming ? 'flex' : 'none';
 }
 
-/* ==================== АНИМАЦИЯ ==================== */
-const lerpA = (a, b, t) => a + (b - a) * t;
+/* ==================== АНИМАЦИЯ (ИЗ МОДЕЛИ) ==================== */
 function updatePlayerAnim(dt) {
+  if (!mixer) return;
+
   const s = currentSpeed01;
-  walkPhase += dt * (4 + s * 9) * s;
-  idlePhase += dt * 2;
-  const airborneTarget = (!onGround && !isSwimming) ? 1 : 0;
-  airborneBlend += (airborneTarget - airborneBlend) * (1 - Math.exp(-14 * dt));
-  const runTarget = s > 0.65 ? 1 : 0;
-  runBlend += (runTarget - runBlend) * (1 - Math.exp(-6 * dt));
-
-  const holding = selectedSlot >= 0 && hotbar[selectedSlot];
-  const holdTarget = holding ? 1 : 0;
-  holdBlend += (holdTarget - holdBlend) * (1 - Math.exp(-10 * dt));
-
-  if (isSwimming) {
-    bodyTiltTarget = 1.15;
-    const t = performance.now() / 1000, sp = 4.5;
-    armL.shoulder.rotation.x = Math.sin(t * sp) * 1.3 + 0.3;
-    armL.shoulder.rotation.z = -0.35;
-    armR.shoulder.rotation.x = Math.sin(t * sp + Math.PI) * 1.3 + 0.3;
-    armR.shoulder.rotation.z = 0.35;
-    armR.elbow.rotation.x = 0;
-    const kick = Math.sin(t * sp * 2);
-    legL.hip.rotation.x = kick * 0.45; legR.hip.rotation.x = -kick * 0.45;
-    headGroup.rotation.x = -0.6; headGroup.rotation.y = 0;
+  const sp = Math.hypot(velocity.x, velocity.z);
+  
+  if (!onGround && !isSwimming) {
+    if (actions['Jump']) fadeToAction('Jump', 0.1);
+    else if (actions['Run']) fadeToAction('Run', 0.1); 
+  } else if (isSwimming) {
+    if (actions['Swim']) fadeToAction('Swim', 0.2);
+    else if (actions['Walk']) fadeToAction('Walk', 0.2);
+  } else if (sp > 0.5) {
+    if (sp > SPEED * 0.7) {
+      if (actions['Run']) fadeToAction('Run', 0.2);
+      else fadeToAction('Walk', 0.2);
+    } else {
+      if (actions['Walk']) fadeToAction('Walk', 0.2);
+      else fadeToAction('Run', 0.2);
+    }
   } else {
-    const swing = Math.sin(walkPhase) * (0.6 + runBlend * 0.3) * s;
-    const swingOpp = Math.sin(walkPhase + Math.PI) * (0.6 + runBlend * 0.3) * s;
-    const airLeg = -0.55;
-    const airArm = -1.15 + (vy < 0 ? 0.3 : 0);
-
-    legL.hip.rotation.x = lerpA(swing, airLeg, airborneBlend);
-    legR.hip.rotation.x = lerpA(swingOpp, airLeg - 0.1, airborneBlend);
-
-    armL.shoulder.rotation.x = lerpA(swingOpp * 0.8, airArm, airborneBlend);
-    armL.shoulder.rotation.z = lerpA(-0.06 - runBlend * 0.15, -0.5, airborneBlend);
-
-    const walkShoulderX = swing * 0.8;
-    const holdShoulderX = -0.6;
-    armR.shoulder.rotation.x = lerpA(lerpA(walkShoulderX, airArm, airborneBlend), holdShoulderX, holdBlend);
-    armR.shoulder.rotation.z = lerpA(lerpA(0.06 + runBlend * 0.15, 0.5, airborneBlend), 0.1, holdBlend);
-    armR.elbow.rotation.x = holdBlend * 1.2;
-
-    const headBob = Math.sin(walkPhase * 2) * 0.03 * s;
-    headGroup.rotation.x = lerpA(headBob, 0.15, airborneBlend);
-    if (s < 0.05) headGroup.rotation.y = Math.sin(idlePhase * 0.4) * 0.25;
-    else headGroup.rotation.y *= Math.exp(-4 * dt);
-    bodyTiltTarget = lerpA(s * 0.07 + runBlend * 0.05, 0.18, airborneBlend);
+    if (actions['Idle']) fadeToAction('Idle', 0.2);
+    else fadeToAction('Walk', 0.2);
   }
-  bodyRoot.rotation.x += (bodyTiltTarget - bodyRoot.rotation.x) * (1 - Math.exp(-8 * dt));
-  bodyRoot.rotation.z = Math.sin(walkPhase) * (0.04 + runBlend * 0.03) * s;
-  const bob = Math.abs(Math.sin(walkPhase * 2)) * (0.04 + runBlend * 0.03) * s;
-  const breathe = s < 0.1 && onGround && !isSwimming ? Math.sin(idlePhase) * 0.012 : 0;
-  bodyRoot.position.y = bob + breathe;
+
+  mixer.update(dt);
+
+  // Плавный наклон, если модель не имеет встроенного наклона
+  if (playerModel) {
+    const targetTilt = s * 0.05;
+    playerModel.rotation.x += (targetTilt - playerModel.rotation.x) * (1 - Math.exp(-8 * dt));
+  }
 }
 
-function updateTorch(t) {
-  if (selectedSlot < 0 || !hotbar[selectedSlot] || hotbar[selectedSlot].id !== 'torch') return;
-  const flicker = 2.3 + Math.sin(t * 18) * 0.35 + Math.sin(t * 27) * 0.2 + Math.sin(t * 9) * 0.15;
-  torchLight.intensity = flicker;
-  const scale = 1 + Math.sin(t * 15) * 0.08;
-  torchFlame.scale.set(scale, 1 + Math.sin(t * 20) * 0.15, scale);
-  torchFlame2.scale.set(scale, 1 + Math.sin(t * 25) * 0.2, scale);
-}
-
-/* ==================== ДЕЙСТВИЯ (БЕЗ ОГРАНИЧЕНИЙ ВОДЫ) ==================== */
+/* ==================== ДЕЙСТВИЯ (ПОДБОР) ==================== */
 function findNearestAction() {
   if (modalOpen || placingPiece) { setAction(null); return; }
   const px = player.position.x, pz = player.position.z;
@@ -2087,7 +1922,7 @@ function doAction() {
   setAction(null);
 }
 
-/* ==================== КИСЛОРОД ==================== */
+/* ==================== КИСЛОРОД / ВРЕМЯ СУТОК / ПОГОДА ==================== */
 const oxyEl = document.getElementById('oxygen');
 const oxyFill = document.getElementById('oxyFill');
 function updateOxygenUI() {
@@ -2098,7 +1933,6 @@ function updateOxygenUI() {
   oxyFill.style.background = oxygen < 30 ? '#f44336' : 'linear-gradient(90deg, #4fc3f7, #29b6f6)';
 }
 
-/* ==================== ВРЕМЯ СУТОК / ПОГОДА ==================== */
 let timeOfDay = 90;
 const SKY_DAY = { top: 0x4a90d0, mid: 0xa8c8d8, bot: 0xe0d8c0 };
 const SKY_SUNSET = { top: 0x2a2a6a, mid: 0xff6050, bot: 0xffb070 };
@@ -2187,7 +2021,6 @@ function updateWeather(dt) {
   }
 }
 
-/* ==================== АТМОСФЕРА И ШЕЙДЕРЫ ==================== */
 const FOG_WATER = new THREE.Color(0x1a4a6a);
 function updateAtmosphere() {
   if (isUnderwater) {
@@ -2214,8 +2047,40 @@ addEventListener('resize', () => {
   composer.setSize(innerWidth, innerHeight);
 });
 
-const hintEl = document.getElementById('hint');
-setTimeout(() => { if(hintEl) hintEl.style.opacity = '0'; }, 5500);
+/* ==================== МОДАЛЬНЫЕ ОКНА ==================== */
+const invModal = document.getElementById('invModal');
+const craftModal = document.getElementById('craftModal');
+const buildModal = document.getElementById('buildModal');
+let modalOpen = false;
+function openModal(m) {
+  closeAllModals();
+  m.classList.add('open');
+  modalOpen = true;
+  if (m === invModal) { renderInventoryModal(); renderHotbarModal(); }
+}
+function closeAllModals() {
+  invModal.classList.remove('open');
+  craftModal.classList.remove('open');
+  buildModal.classList.remove('open');
+  modalOpen = false;
+}
+document.getElementById('openInv').addEventListener('click', () => openModal(invModal));
+document.getElementById('openCraft').addEventListener('click', () => { renderCraft(); openModal(craftModal); });
+document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeAllModals));
+document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => { if (e.target === m) closeAllModals(); }));
+
+document.getElementById('fsBtn').addEventListener('click', async () => {
+  try {
+    if (!document.fullscreenElement) {
+      await document.documentElement.requestFullscreen();
+      if (screen.orientation && screen.orientation.lock) {
+        try { await screen.orientation.lock('landscape'); } catch(e) {}
+      }
+    } else {
+      await document.exitFullscreen();
+    }
+  } catch(e) {}
+});
 
 /* ==================== ЦИКЛ ==================== */
 const clock = new THREE.Clock();
@@ -2242,7 +2107,6 @@ function animate() {
   waterNormalMap.offset.x = elapsed * 0.02;
   waterNormalMap.offset.y = elapsed * 0.03;
   
-  // Анимируем волны (пена увеличивается в дождь)
   if (waterMat.userData.shader) {
     waterMat.userData.shader.uniforms.uTime.value = elapsed;
     waterMat.userData.shader.uniforms.uWaveHeight.value = weather === 'rain' ? 2.5 : 0.5;
@@ -2257,8 +2121,50 @@ function animate() {
   composer.render();
 }
 
-renderOutsideHotbar();
-animate();
+function updateTorch(t) {
+  if (selectedSlot < 0 || !hotbar[selectedSlot] || hotbar[selectedSlot].id !== 'torch') return;
+  const flicker = 2.3 + Math.sin(t * 18) * 0.35 + Math.sin(t * 27) * 0.2 + Math.sin(t * 9) * 0.15;
+  torchLight.intensity = flicker;
+  const scale = 1 + Math.sin(t * 15) * 0.08;
+  torchFlame.scale.set(scale, 1 + Math.sin(t * 20) * 0.15, scale);
+  torchFlame2.scale.set(scale, 1 + Math.sin(t * 25) * 0.2, scale);
+}
+
+/* ==================== ЗАПУСК ==================== */
+initPlayer().then(() => {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('startScreen').style.display = 'flex';
+  
+  document.getElementById('startBtn').addEventListener('click', async () => {
+    try {
+      if (document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen();
+      }
+    } catch(e) {}
+    try {
+      if (screen.orientation && screen.orientation.lock) {
+        await screen.orientation.lock('landscape');
+      }
+    } catch(e) {}
+    
+    document.getElementById('startScreen').style.display = 'none';
+    document.getElementById('clockBadge').style.display = 'flex';
+    document.getElementById('menuBtns').style.display = 'flex';
+    document.getElementById('topright').style.display = 'flex';
+    document.getElementById('hotbar').style.display = 'flex';
+    document.getElementById('jumpBtn').style.display = 'flex';
+    
+    if (!mixer) initFallbackModel();
+    animate();
+  });
+});
+
+async function initPlayer() {
+  const spawn = findSpawn();
+  player.position.set(spawn.x, getTerrainYAt(spawn.x, spawn.z) + 1, spawn.z);
+  await loadPlayerModel();
+  renderOutsideHotbar();
+}
 </script>
 </body>
 </html>
