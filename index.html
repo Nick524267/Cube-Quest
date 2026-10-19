@@ -3,17 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-<title>Valheim-like (Offline)</title>
-
-<!-- Подключаем Three.js локально или через CDN (если файла нет) -->
-<script src="./three.min.js"></script>
-<script>
-  // Если локальный файл не найден, грузим с CDN (страховка)
-  if (typeof THREE === 'undefined') {
-    document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r147/three.min.js"><\/script>');
-  }
-</script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<title>Valheim-like</title>
 
 <style>
   :root {
@@ -308,7 +298,7 @@
 
 <div id="loading">
   <div class="spinner"></div>
-  <div>Генерация мира и загрузка...</div>
+  <div>Генерация мира...</div>
 </div>
 
 <div id="startScreen">
@@ -375,24 +365,38 @@
 <div id="toast"></div>
 <div id="stick" style="display:none;"><div id="knob"></div></div>
 
-<script>
+<!-- Исправленное подключение модулей (самый надежный способ) -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
 /* ==================== НАСТРОЙКИ ==================== */
-const TERRAIN_SEG    = 100;
-const PINE_COUNT     = 300;
-const OAK_COUNT      = 200;
-const BIRCH_COUNT    = 150;
-const ROCK_COUNT     = 200; 
-const GRASS_PER_VARIANT = 3000;
-const WATER_SEG      = 100;
+const WORLD_SIZE     = 2520;
+const TERRAIN_SEG    = 200; // Уменьшено для быстрой загрузки
+const WATER_SEG      = 64;
+const PINE_COUNT     = 1000;
+const OAK_COUNT      = 600;
+const BIRCH_COUNT    = 450;
 const SMALL_TREE_COUNT = 600;
+const ROCK_COUNT     = 700;
 const FLINT_COUNT    = 500;
 const BRANCH_COUNT   = 900;
 const SEAWEED_COUNT  = 400;
 const PEBBLE_COUNT   = 400;
+const GRASS_PER_VARIANT = 4000; // Уменьшено для быстрой загрузки
 const RAIN_COUNT     = 600;
 const PLAYER_RADIUS  = 0.35;
 const PLAYER_HEIGHT  = 1.8;
-const SPEED          = 9;
+const SPEED          = 10;
 const ACCEL          = 14;
 const WATER_LEVEL    = -2.5;
 const GRAVITY        = 25;
@@ -412,7 +416,7 @@ const HOTBAR_SLOTS   = 9;
 
 /* ==================== РЕНДЕР ==================== */
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); // Снижено до 2 для оптимизации
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -435,7 +439,7 @@ scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff2d0, 2.2);
 sun.position.set(40, 60, 30);
 sun.castShadow = true;
-sun.shadow.mapSize.set(1024, 1024); // Оптимизация теней
+sun.shadow.mapSize.set(1024, 1024);
 const sc = sun.shadow.camera;
 sc.left = -60; sc.right = 60; sc.top = 60; sc.bottom = -60; sc.near = 1; sc.far = 220;
 sun.shadow.bias = -0.0008;
@@ -959,11 +963,10 @@ function findSpawn() {
   return { x: 0, z: 0 };
 }
 
-// Загрузка модели (локально или через CDN)
+// Загрузка модели
 function loadPlayerModel() {
   return new Promise((resolve) => {
-    const loader = new THREE.GLTFLoader();
-    // Пытаемся загрузить локально. Если файла нет, сработает fallback
+    const loader = new GLTFLoader();
     loader.load('./Soldier.glb', (gltf) => {
       playerModel = gltf.scene;
       playerModel.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
@@ -975,8 +978,7 @@ function loadPlayerModel() {
       if (actions['Idle']) { activeAction = actions['Idle']; activeAction.play(); }
       resolve();
     }, undefined, () => {
-      // Fallback: процедурный персонаж, если модель не скачана
-      console.warn("Модель не найдена, используем процедурную.");
+      // Запасной вариант
       const g = new THREE.Group();
       const skinMat = new THREE.MeshStandardMaterial({ color: 0x8F6E43 });
       const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 0.8, 4, 8), skinMat);
@@ -1611,7 +1613,7 @@ function animate() {
   }
   sky.position.copy(player.position);
   
-  renderer.render(scene, camera); // Прямой рендер без постобработки
+  renderer.render(scene, camera);
 }
 
 async function initPlayer() {
@@ -1641,4 +1643,4 @@ initPlayer().then(() => {
 });
 </script>
 </body>
-  </html>
+</html>
