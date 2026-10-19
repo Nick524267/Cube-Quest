@@ -1,0 +1,1637 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>Valheim-like</title>
+
+<!-- Подключение Three.js и загрузчика моделей напрямую через интернет -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r147/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+
+<style>
+  :root {
+    --wood-dark: #2e1f12; --wood-mid: #4a3520; --wood-light: #6a4a2a;
+    --wood-border: #a8804a; --parchment: #f5e6c8; --gold: #e0b060; --gold-bright: #ffd27a;
+    --shadow: 0 4px 12px rgba(0,0,0,.6);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: var(--wood-dark);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    user-select: none; -webkit-user-select: none;
+    touch-action: none;
+  }
+  canvas { display: block; touch-action: none; }
+
+  #loading {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: #0a0602; color: var(--gold-bright); font-size: 18px; letter-spacing: 2px;
+    z-index: 400; flex-direction: column; gap: 20px;
+  }
+  .spinner {
+    width: 40px; height: 40px; border: 4px solid var(--wood-light);
+    border-top-color: var(--gold-bright); border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { 100% { transform: rotate(360deg); } }
+
+  .ui-icon {
+    font-family: 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif;
+    filter: sepia(1) hue-rotate(-15deg) saturate(1.5) brightness(0.9) drop-shadow(0 2px 2px rgba(0,0,0,0.5));
+    display: inline-block; font-style: normal; line-height: 1;
+  }
+  .ui-icon-white { filter: drop-shadow(0 1px 3px rgba(0,0,0,0.8)); }
+
+  #startScreen {
+    position: fixed; inset: 0;
+    background: radial-gradient(circle at 50% 40%, #2a1a0e, #0a0602 70%);
+    display: none; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 500; padding: 20px; text-align: center;
+  }
+  #startScreen h1 {
+    color: var(--gold-bright); font-size: clamp(28px, 6vw, 48px);
+    margin: 0 0 6px; letter-spacing: 4px;
+    text-shadow: 0 0 20px rgba(224,176,96,.5);
+  }
+  #startScreen p { color: var(--parchment); opacity: .7; font-size: 14px; margin: 0 0 28px; }
+  #startBtn {
+    padding: 14px 48px; font-size: 20px; font-weight: 700;
+    background: linear-gradient(180deg, #6a4a20, #3a2a15);
+    color: var(--gold-bright); border: 3px solid var(--gold);
+    border-radius: 12px; cursor: pointer; letter-spacing: 3px;
+    box-shadow: 0 0 30px rgba(224,176,96,.4), inset 0 1px 0 rgba(255,255,255,.15);
+    font-family: inherit;
+  }
+  #startBtn:active { transform: scale(.97); }
+
+  .icon-btn {
+    width: 46px; height: 46px; border-radius: 8px;
+    border: 2px solid var(--wood-border);
+    background: linear-gradient(180deg, var(--wood-mid), var(--wood-dark));
+    color: var(--parchment); font-size: 22px; cursor: pointer;
+    box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.1);
+    display: flex; align-items: center; justify-content: center;
+    transition: transform .1s;
+  }
+  .icon-btn:active { transform: scale(.94); border-color: var(--gold); }
+
+  #menuBtns { position: fixed; top: 12px; left: 12px; display: flex; gap: 6px; z-index: 6; }
+
+  #topright {
+    position: fixed; top: 12px; right: 12px;
+    display: flex; flex-direction: column; gap: 6px; align-items: flex-end;
+    color: var(--parchment); z-index: 5; padding: 6px 10px;
+    background: rgba(30,20,10,.6);
+    border: 1px solid var(--wood-border); border-radius: 8px;
+    backdrop-filter: blur(4px);
+  }
+  #topright .small { font-size: 10px; opacity: .85; letter-spacing: .5px; text-transform: uppercase; }
+
+  #clockBadge {
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 10px; align-items: center;
+    padding: 6px 14px; border-radius: 8px;
+    background: rgba(30,20,10,.7);
+    border: 1px solid var(--wood-border);
+    color: var(--parchment); font-size: 12px;
+    z-index: 5; pointer-events: none;
+    backdrop-filter: blur(4px);
+  }
+  #clockBadge .icon { font-size: 16px; }
+
+  #hotbar {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 4px; z-index: 6; padding: 5px;
+    background: rgba(30,20,10,.75);
+    border: 2px solid var(--wood-border); border-radius: 10px;
+    box-shadow: var(--shadow); backdrop-filter: blur(4px);
+  }
+  .hotbar-slot {
+    width: 46px; height: 46px; border-radius: 6px;
+    border: 2px solid var(--wood-light);
+    background: rgba(0,0,0,.4);
+    color: var(--parchment); font-size: 22px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; position: relative; transition: all .12s;
+  }
+  .hotbar-slot.selected {
+    border-color: var(--gold);
+    background: rgba(224,176,96,.3);
+    box-shadow: 0 0 10px rgba(224,176,96,.6);
+    transform: translateY(-3px);
+  }
+  .hotbar-slot .num { position: absolute; top: 1px; left: 3px; font-size: 9px; font-weight: 700; color: rgba(245,230,200,.6); }
+  .hotbar-slot .cnt { position: absolute; bottom: 1px; right: 3px; font-size: 10px; font-weight: 700; color: var(--gold-bright); text-shadow: 0 1px 2px #000; }
+
+  #action, #buildBtn {
+    position: fixed; bottom: 84px; left: 50%; transform: translateX(-50%);
+    padding: 10px 22px; border-radius: 999px;
+    font-family: inherit; font-size: 14px; font-weight: 700;
+    display: none; z-index: 7; cursor: pointer;
+    border: 2px solid var(--wood-border); box-shadow: var(--shadow);
+  }
+  #action { background: linear-gradient(180deg, var(--wood-mid), var(--wood-dark)); color: var(--parchment); }
+  #action:active { transform: translateX(-50%) scale(.96); }
+  #buildBtn { background: linear-gradient(180deg, #5a4020, #3a2a15); color: var(--gold-bright); border-color: var(--gold); }
+
+  #jumpBtn, #diveBtn {
+    position: fixed; right: 20px; width: 68px; height: 68px;
+    border-radius: 50%; border: 2px solid var(--wood-border);
+    background: linear-gradient(180deg, var(--wood-mid), var(--wood-dark));
+    color: var(--parchment); font-size: 26px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    touch-action: none; cursor: pointer; z-index: 6; box-shadow: var(--shadow);
+  }
+  #jumpBtn { bottom: 100px; }
+  #jumpBtn:active { background: var(--gold); color: var(--wood-dark); }
+  #diveBtn { bottom: 178px; display: none; border-color: #4fc3f7; }
+  #diveBtn:active { background: #4fc3f7; color: var(--wood-dark); }
+
+  #oxygen {
+    position: fixed; bottom: 184px; left: 50%; transform: translateX(-50%);
+    width: 200px; height: 14px;
+    background: rgba(0,0,0,.6); border: 2px solid var(--wood-border);
+    border-radius: 7px; overflow: hidden; display: none; z-index: 8;
+  }
+  .oxy-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #4fc3f7, #29b6f6); transition: width .08s linear, background .3s; }
+
+  #stick {
+    position: fixed; left: 20px; bottom: 20px;
+    width: 120px; height: 120px; border-radius: 50%;
+    background: rgba(30,20,10,.35);
+    border: 2px solid var(--wood-border);
+    display: none; touch-action: none; z-index: 5;
+  }
+  #knob {
+    position: absolute; left: 50%; top: 50%;
+    width: 52px; height: 52px;
+    margin: -26px 0 0 -26px; border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, var(--parchment), var(--wood-border));
+    box-shadow: 0 3px 12px rgba(0,0,0,.6);
+  }
+
+  #toast {
+    position: fixed; top: 42%; left: 50%; transform: translate(-50%,-50%);
+    padding: 10px 20px; border-radius: 8px;
+    background: rgba(30,20,10,.92);
+    border: 2px solid var(--gold);
+    color: var(--parchment); font-size: 14px; font-weight: 600;
+    opacity: 0; transition: opacity .3s;
+    pointer-events: none; z-index: 20;
+    box-shadow: 0 4px 16px rgba(0,0,0,.7);
+  }
+
+  .modal {
+    position: fixed; inset: 0;
+    background: rgba(10,6,3,.75);
+    display: none; align-items: center; justify-content: center;
+    z-index: 100; backdrop-filter: blur(3px);
+  }
+  .modal.open { display: flex; }
+  .modal-content {
+    background: linear-gradient(180deg, #3a2818, #2a1a0e);
+    border: 3px solid var(--wood-border);
+    border-radius: 12px; padding: 18px 20px 20px;
+    min-width: 340px; max-width: 96vw;
+    max-height: 92vh; overflow-y: auto;
+    color: var(--parchment); position: relative;
+    box-shadow: 0 20px 60px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.08);
+  }
+  .modal-content h2 {
+    margin: 0 0 12px; font-size: 16px; letter-spacing: 1px;
+    color: var(--gold-bright); text-transform: uppercase; font-weight: 700;
+    border-bottom: 1px solid var(--wood-border); padding-bottom: 6px;
+  }
+  .modal-content h2.second { margin-top: 16px; }
+  .modal-close {
+    position: absolute; top: 8px; right: 10px;
+    width: 32px; height: 32px;
+    border: 2px solid var(--wood-border); border-radius: 6px;
+    background: rgba(0,0,0,.3);
+    color: var(--parchment); font-size: 20px; line-height: 1; cursor: pointer;
+  }
+  .modal-close:active { background: var(--wood-light); }
+
+  .inv-grid { display: grid; grid-template-columns: repeat(6, 50px); gap: 5px; }
+  .inv-slot {
+    width: 50px; height: 50px;
+    background: rgba(0,0,0,.35);
+    border: 2px solid var(--wood-light); border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    position: relative; font-size: 24px;
+    cursor: pointer; touch-action: none;
+  }
+  .inv-slot .count { position: absolute; bottom: 1px; right: 3px; font-size: 11px; font-weight: 700; color: var(--gold-bright); text-shadow: 0 1px 2px #000; }
+
+  .hotbar-m-grid { display: grid; grid-template-columns: repeat(9, 1fr); gap: 4px; }
+  .hotbar-m-slot {
+    aspect-ratio: 1; min-width: 40px;
+    background: rgba(0,0,0,.35);
+    border: 2px solid var(--wood-light); border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+    position: relative; font-size: 20px;
+    cursor: pointer; touch-action: none;
+  }
+  .hotbar-m-slot .num { position: absolute; top: 1px; left: 3px; font-size: 9px; opacity: .6; }
+  .hotbar-m-slot .count { position: absolute; bottom: 1px; right: 3px; font-size: 10px; font-weight: 700; color: var(--gold-bright); text-shadow: 0 1px 2px #000; }
+  .inv-hint { font-size: 11px; opacity: .55; text-align: center; margin-top: 8px; letter-spacing: .3px; }
+
+  .craft-list { display: flex; flex-direction: column; gap: 8px; }
+  .craft-item {
+    padding: 12px 14px; border-radius: 8px;
+    border: 2px solid var(--wood-light);
+    background: rgba(0,0,0,.3);
+    color: var(--parchment); cursor: pointer; text-align: left;
+    font-family: inherit; font-size: 13px; font-weight: 600;
+    transition: all .15s;
+  }
+  .craft-item:active { transform: scale(.98); }
+  .craft-item.enough { border-color: var(--gold); background: rgba(224,176,96,.15); box-shadow: 0 0 10px rgba(224,176,96,.3); }
+  .craft-item.done { border-color: #6a8a4a; background: rgba(106,138,74,.15); opacity: .7; cursor: default; }
+  .craft-item small { display: block; font-weight: 400; opacity: .75; font-size: 11px; margin-top: 4px; }
+
+  .build-tabs { display: flex; gap: 6px; margin-bottom: 12px; border-bottom: 1px solid var(--wood-border); padding-bottom: 8px; }
+  .build-tab {
+    padding: 8px 14px; border-radius: 6px;
+    border: 2px solid var(--wood-light);
+    background: rgba(0,0,0,.3);
+    color: var(--parchment); font-size: 12px; font-weight: 700;
+    cursor: pointer; letter-spacing: .5px;
+  }
+  .build-tab.active { border-color: var(--gold); background: rgba(224,176,96,.25); color: var(--gold-bright); }
+  .build-pieces { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .build-piece {
+    padding: 14px; border-radius: 8px;
+    border: 2px solid var(--wood-light);
+    background: rgba(0,0,0,.3);
+    color: var(--parchment); cursor: pointer;
+    text-align: center; font-size: 13px; font-weight: 600;
+    transition: all .15s;
+  }
+  .build-piece:active { transform: scale(.97); }
+  .build-piece.enough { border-color: var(--gold); background: rgba(224,176,96,.15); }
+  .build-piece.disabled { opacity: .4; cursor: not-allowed; }
+  .build-piece .icon { font-size: 28px; display: block; margin-bottom: 4px; }
+  .build-piece .cost { display: block; font-weight: 400; opacity: .75; font-size: 11px; margin-top: 4px; }
+
+  .drag-ghost { pointer-events: none; filter: drop-shadow(0 4px 8px rgba(0,0,0,.8)); }
+
+  @media (orientation: landscape) and (max-height: 500px) {
+    .icon-btn { width: 38px; height: 38px; font-size: 18px; }
+    #hotbar { bottom: 8px; padding: 3px; }
+    .hotbar-slot { width: 38px; height: 38px; font-size: 18px; }
+    #jumpBtn, #diveBtn { width: 56px; height: 56px; font-size: 22px; right: 12px; }
+    #jumpBtn { bottom: 70px; } #diveBtn { bottom: 134px; }
+    #action, #buildBtn { bottom: 58px; padding: 8px 18px; font-size: 12px; }
+    #oxygen { bottom: 140px; height: 12px; width: 160px; }
+    #stick { width: 100px; height: 100px; left: 12px; bottom: 12px; }
+    #knob { width: 44px; height: 44px; margin: -22px 0 0 -22px; }
+    #topright { padding: 4px 8px; }
+    #clockBadge { font-size: 11px; padding: 4px 10px; }
+    .modal-content { padding: 12px 16px 16px; min-width: 300px; }
+    .inv-grid { grid-template-columns: repeat(6, 44px); gap: 4px; }
+    .inv-slot { width: 44px; height: 44px; font-size: 20px; }
+    .hotbar-m-slot { font-size: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div>Генерация мира...</div>
+</div>
+
+<div id="startScreen">
+  <h1>VALHEIM-LIKE</h1>
+  <p>Открытый мир · Выживание · Строительство</p>
+  <button id="startBtn">▶ ИГРАТЬ</button>
+</div>
+
+<div id="clockBadge" style="display:none;">
+  <span class="icon ui-icon-white" id="clockIcon">☀️</span>
+  <span id="clockTime">06:00</span>
+  <span id="weatherName" style="opacity:.8">· Ясно</span>
+</div>
+
+<div id="menuBtns" style="display:none;">
+  <button class="icon-btn" id="openInv" title="Инвентарь"><span class="ui-icon">🎒</span></button>
+  <button class="icon-btn" id="openCraft" title="Крафт"><span class="ui-icon">⚒</span></button>
+  <button class="icon-btn" id="fsBtn" title="Полный экран"><span class="ui-icon">⛶</span></button>
+  <button class="icon-btn" id="camBtn" title="Сменить вид"><span class="ui-icon">📷</span></button>
+</div>
+
+<div id="topright" style="display:none;">
+  <div class="small">Управление</div>
+  <div style="font-size: 10px; opacity: 0.6; text-align: right; line-height: 1.2;">
+    Свайп справа — камера<br>2 пальца — зум
+  </div>
+</div>
+
+<div id="oxygen" style="display:none;"><div class="oxy-fill" id="oxyFill"></div></div>
+<div id="hotbar" style="display:none;"></div>
+
+<div class="modal" id="invModal">
+  <div class="modal-content">
+    <button class="modal-close" data-close>×</button>
+    <h2>Инвентарь</h2>
+    <div class="inv-grid" id="invGrid"></div>
+    <h2 class="second">Хотбар</h2>
+    <div class="hotbar-m-grid" id="hotbarMGrid"></div>
+    <div class="inv-hint">Перетащи предмет в другой слот</div>
+  </div>
+</div>
+
+<div class="modal" id="craftModal">
+  <div class="modal-content">
+    <button class="modal-close" data-close>×</button>
+    <h2>Крафт</h2>
+    <div class="craft-list" id="craftList"></div>
+  </div>
+</div>
+
+<div class="modal" id="buildModal">
+  <div class="modal-content">
+    <button class="modal-close" data-close>×</button>
+    <h2>Строительство</h2>
+    <div class="build-tabs" id="buildTabs"></div>
+    <div class="build-pieces" id="buildPieces"></div>
+  </div>
+</div>
+
+<button id="action" style="display:none;">Подобрать</button>
+<button id="buildBtn" style="display:none;"><span class="ui-icon">🔨</span> Строить</button>
+<button id="jumpBtn" style="display:none;">↑</button>
+<button id="diveBtn" style="display:none;">↓</button>
+<div id="toast"></div>
+<div id="stick" style="display:none;"><div id="knob"></div></div>
+
+<script>
+/* ==================== НАСТРОЙКИ ==================== */
+const WORLD_SIZE     = 2520;
+const TERRAIN_SEG    = 300;
+const WATER_SEG      = 100;
+const PINE_COUNT     = 1000;
+const OAK_COUNT      = 600;
+const BIRCH_COUNT    = 450;
+const SMALL_TREE_COUNT = 600;
+const ROCK_COUNT     = 700;
+const FLINT_COUNT    = 500;
+const BRANCH_COUNT   = 900;
+const SEAWEED_COUNT  = 400;
+const PEBBLE_COUNT   = 400;
+const GRASS_PER_VARIANT = 10000;
+const RAIN_COUNT     = 600;
+const PLAYER_RADIUS  = 0.35;
+const PLAYER_HEIGHT  = 1.8;
+const SPEED          = 10;
+const ACCEL          = 14;
+const WATER_LEVEL    = -2.5;
+const GRAVITY        = 25;
+const JUMP_SPEED     = 9;
+const SWIM_SPEED_MUL = 0.55;
+const DIVE_SPEED     = 4.5;
+const SWIM_DEPTH_THRESHOLD = 1.0;
+const MAX_STEP_DOWN  = 0.5;
+const OXYGEN_MAX     = 100;
+const OXYGEN_DRAIN   = 9;
+const OXYGEN_REFILL  = 35;
+const FOG_DENSITY    = 0.0025;
+const FOG_DENSITY_UNDER = 0.09;
+const DAY_CYCLE      = 720;
+const INV_SLOTS      = 30;
+const HOTBAR_SLOTS   = 9;
+
+/* ==================== РЕНДЕР ==================== */
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+document.body.appendChild(renderer.domElement);
+
+const MAX_ANISO = renderer.capabilities.getMaxAnisotropy();
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xa8c8d8);
+scene.fog = new THREE.FogExp2(0xa8c8d8, FOG_DENSITY);
+
+const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.1, 3000);
+camera.position.set(0, 12, 18);
+
+const hemi = new THREE.HemisphereLight(0xd8ecff, 0x445533, 0.9);
+scene.add(hemi);
+
+const sun = new THREE.DirectionalLight(0xfff2d0, 2.2);
+sun.position.set(40, 60, 30);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+const sc = sun.shadow.camera;
+sc.left = -60; sc.right = 60; sc.top = 60; sc.bottom = -60; sc.near = 1; sc.far = 220;
+sun.shadow.bias = -0.0008;
+sun.shadow.normalBias = 0.03;
+scene.add(sun); scene.add(sun.target);
+
+const skyGeo = new THREE.SphereGeometry(2000, 32, 16);
+const skyMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false,
+  uniforms: {
+    topColor: { value: new THREE.Color(0x4a90d0) },
+    midColor: { value: new THREE.Color(0xa8c8d8) },
+    botColor: { value: new THREE.Color(0xe0d8c0) },
+  },
+  vertexShader: `varying vec3 vDir; void main(){ vDir=normalize(position); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);} `,
+  fragmentShader: `varying vec3 vDir; uniform vec3 topColor,midColor,botColor; void main(){ float h=clamp(vDir.y*0.5+0.5,0.0,1.0); vec3 c=mix(botColor,midColor,smoothstep(0.3,0.55,h)); c=mix(c,topColor,smoothstep(0.55,1.0,h)); gl_FragColor=vec4(c,1.0);} `,
+});
+const sky = new THREE.Mesh(skyGeo, skyMat);
+sky.renderOrder = -1;
+scene.add(sky);
+
+/* ==================== ШУМ И РЕЛЬЕФ ==================== */
+function hash(x, y) { const s = Math.sin(x*127.1+y*311.7)*43758.5453; return s-Math.floor(s); }
+function smooth(t) { return t*t*(3-2*t); }
+function valueNoise(x, y) {
+  const xi = Math.floor(x), yi = Math.floor(y);
+  const xf = x-xi, yf = y-yi;
+  const a = hash(xi,yi), b = hash(xi+1,yi), c = hash(xi,yi+1), d = hash(xi+1,yi+1);
+  const u = smooth(xf), v = smooth(yf);
+  return a*(1-u)*(1-v)+b*u*(1-v)+c*(1-u)*v+d*u*v;
+}
+function fbm(x, y) { let v=0,amp=0.5,freq=1; for(let i=0;i<4;i++){v+=amp*valueNoise(x*freq,y*freq);freq*=2;amp*=0.5;} return v; }
+function valueNoiseSeamless(x, y, period) {
+  const xi = Math.floor(x), yi = Math.floor(y);
+  const xf = x-xi, yf = y-yi;
+  const x0 = ((xi%period)+period)%period, y0 = ((yi%period)+period)%period;
+  const x1 = (x0+1)%period, y1 = (y0+1)%period;
+  const a = hash(x0,y0), b = hash(x1,y0), c = hash(x0,y1), d = hash(x1,y1);
+  const u = smooth(xf), v = smooth(yf);
+  return a*(1-u)*(1-v)+b*u*(1-v)+c*(1-u)*v+d*u*v;
+}
+
+function terrainHeight(x, z) {
+  const base = fbm(x*0.001, z*0.001); 
+  let h = (base - 0.45) * 60; 
+  const mountains = fbm(x*0.002 + 100, z*0.002 + 100);
+  if (mountains > 0.55) h += Math.pow(mountains - 0.55, 2) * 400; 
+  h += (fbm(x*0.01, z*0.01) - 0.5) * 6;
+  
+  const r1c = Math.sin(x*0.008)*60+Math.cos(x*0.002)*40;
+  const r1 = Math.max(0, 1-Math.abs(z-r1c)/20);
+  const r2c = Math.sin(z*0.008)*60+Math.cos(z*0.002)*40;
+  const r2 = Math.max(0, 1-Math.abs(x-r2c)/20);
+  const rm = Math.max(r1,r2);
+  if (rm > 0) { const k = rm*rm; h = h*(1-k*0.95) - k*30.0; }
+  return h;
+}
+
+const GRID_HALF = WORLD_SIZE/2;
+const GRID_CELL = WORLD_SIZE/TERRAIN_SEG;
+const GRID_N = TERRAIN_SEG+1;
+const gridHeights = new Float32Array(GRID_N*GRID_N);
+for (let iz = 0; iz < GRID_N; iz++) for (let ix = 0; ix < GRID_N; ix++)
+  gridHeights[iz*GRID_N+ix] = terrainHeight(-GRID_HALF+ix*GRID_CELL, -GRID_HALF+iz*GRID_CELL);
+
+function getTerrainYAt(x, z) {
+  const gx = (x+GRID_HALF)/GRID_CELL, gz = (z+GRID_HALF)/GRID_CELL;
+  let ix = Math.floor(gx), iz = Math.floor(gz);
+  if (ix < 0) ix = 0; if (iz < 0) iz = 0;
+  if (ix > GRID_N-2) ix = GRID_N-2; if (iz > GRID_N-2) iz = GRID_N-2;
+  const fx = Math.max(0, Math.min(1, gx-ix));
+  const fz = Math.max(0, Math.min(1, gz-iz));
+  const h00 = gridHeights[iz*GRID_N+ix];
+  const h10 = gridHeights[iz*GRID_N+ix+1];
+  const h01 = gridHeights[(iz+1)*GRID_N+ix];
+  const h11 = gridHeights[(iz+1)*GRID_N+ix+1];
+  if (fx+fz < 1) return h00*(1-fx-fz)+h01*fz+h10*fx;
+  return h01*(1-fx)+h11*(fx+fz-1)+h10*(1-fz);
+}
+
+/* ==================== ТЕКСТУРЫ ==================== */
+function makeNoiseTexture() {
+  const SIZE = 512;
+  const c = document.createElement('canvas');
+  c.width = SIZE; c.height = SIZE;
+  const ctx = c.getContext('2d');
+  const img = ctx.createImageData(SIZE, SIZE);
+  const P1 = 8, P2 = 24;
+  for (let y = 0; y < SIZE; y++) for (let x = 0; x < SIZE; x++) {
+    const i = (y*SIZE+x)*4;
+    const n1 = valueNoiseSeamless(x*P1/SIZE, y*P1/SIZE, P1);
+    const n2 = valueNoiseSeamless(x*P2/SIZE, y*P2/SIZE, P2);
+    const v = 180 + (n1*0.5 + n2*0.5) * 75;
+    img.data[i]=v; img.data[i+1]=v; img.data[i+2]=v*0.95; img.data[i+3]=255;
+  }
+  ctx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(60, 60);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = MAX_ANISO;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.generateMipmaps = true;
+  return tex;
+}
+
+function makeWaterNormalMap() {
+  const SIZE = 256;
+  const c = document.createElement('canvas');
+  c.width = SIZE; c.height = SIZE;
+  const ctx = c.getContext('2d');
+  const img = ctx.createImageData(SIZE, SIZE);
+  const P1 = 12, P2 = 32, P3 = 80;
+  for (let y = 0; y < SIZE; y++) for (let x = 0; x < SIZE; x++) {
+    const i = (y*SIZE+x)*4;
+    const b = valueNoiseSeamless(x*P1/SIZE, y*P1/SIZE, P1)*0.5 + valueNoiseSeamless(x*P2/SIZE, y*P2/SIZE, P2)*0.3 + valueNoiseSeamless(x*P3/SIZE, y*P3/SIZE, P3)*0.2;
+    const nx = valueNoiseSeamless((x+1)*P1/SIZE, y*P1/SIZE, P1)*0.5 + valueNoiseSeamless((x+1)*P2/SIZE, y*P2/SIZE, P2)*0.3 + valueNoiseSeamless((x+1)*P3/SIZE, y*P3/SIZE, P3)*0.2;
+    const ny = valueNoiseSeamless(x*P1/SIZE, (y+1)*P1/SIZE, P1)*0.5 + valueNoiseSeamless(x*P2/SIZE, (y+1)*P2/SIZE, P2)*0.3 + valueNoiseSeamless(x*P3/SIZE, (y+1)*P3/SIZE, P3)*0.2;
+    img.data[i] = 128+(nx-b)*380;
+    img.data[i+1] = 128+(ny-b)*380;
+    img.data[i+2] = 255; img.data[i+3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(40, 40);
+  tex.anisotropy = MAX_ANISO;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.generateMipmaps = true;
+  return tex;
+}
+
+/* ==================== ЗЕМЛЯ ==================== */
+const terrainGeo = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE, TERRAIN_SEG, TERRAIN_SEG);
+terrainGeo.rotateX(-Math.PI/2);
+const pos = terrainGeo.attributes.position;
+const colors = [];
+const cGrass  = new THREE.Color(0x74a344);
+const cGrass2 = new THREE.Color(0x94c25c);
+const cRock   = new THREE.Color(0x8a8a7e);
+const cSand   = new THREE.Color(0xe0c890);
+const cSeabed = new THREE.Color(0xc8b890);
+for (let i = 0; i < pos.count; i++) {
+  const x = pos.getX(i), z = pos.getZ(i);
+  const h = terrainHeight(x, z);
+  pos.setY(i, h);
+  let c;
+  if (h < WATER_LEVEL-0.6) c = cSeabed;
+  else if (h < WATER_LEVEL+0.8) c = cSand;
+  else if (h > 25) c = cRock;
+  else {
+    const t = Math.min(1, Math.max(0, (h+2)/25));
+    c = cGrass.clone().lerp(cGrass2, t*0.7+Math.random()*0.3);
+  }
+  colors.push(c.r, c.g, c.b);
+}
+terrainGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+terrainGeo.computeVertexNormals();
+
+const terrainMat = new THREE.MeshStandardMaterial({
+  vertexColors: true, map: makeNoiseTexture(),
+  roughness: 0.95, metalness: 0.0, flatShading: false
+});
+const terrain = new THREE.Mesh(terrainGeo, terrainMat);
+terrain.receiveShadow = true;
+scene.add(terrain);
+
+/* ==================== ВОДА ==================== */
+const waterNormalMap = makeWaterNormalMap();
+const waterMat = new THREE.MeshStandardMaterial({
+  color: 0x2a8ab0, transparent: true, opacity: 0.75,
+  roughness: 0.1, metalness: 0.6, side: THREE.DoubleSide,
+  normalMap: waterNormalMap, normalScale: new THREE.Vector2(0.5, 0.5),
+  depthWrite: false, flatShading: true
+});
+
+waterMat.onBeforeCompile = (shader) => {
+  shader.uniforms.uTime = { value: 0 };
+  shader.uniforms.uWaveHeight = { value: 0.15 };
+  
+  shader.vertexShader = `
+    uniform float uTime;
+    uniform float uWaveHeight;
+    varying float vWave;
+  ` + shader.vertexShader;
+
+  shader.vertexShader = shader.vertexShader.replace(
+    '#include <begin_vertex>',
+    `
+    vec3 transformed = vec3(position);
+    float wx = position.x * 0.1;
+    float wz = position.z * 0.15;
+    float wave = sin(wx + uTime) * 0.3 + sin(wz + uTime * 1.3) * 0.2 + sin((wx+wz)*0.05 + uTime * 0.8) * 0.4;
+    transformed.y += wave * uWaveHeight;
+    vWave = wave;
+    `
+  );
+
+  shader.fragmentShader = `varying float vWave;\n` + shader.fragmentShader;
+  shader.fragmentShader = shader.fragmentShader.replace(
+    '#include <color_fragment>',
+    `
+    #include <color_fragment>
+    float foam = smoothstep(0.2, 0.5, vWave);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 0.95, 1.0), foam * 0.8);
+    `
+  );
+  waterMat.userData.shader = shader;
+};
+
+const waterGeo = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE, WATER_SEG, WATER_SEG);
+waterGeo.rotateX(-Math.PI/2);
+const water = new THREE.Mesh(waterGeo, waterMat);
+water.position.y = WATER_LEVEL;
+water.renderOrder = 1;
+water.frustumCulled = false;
+scene.add(water);
+
+/* ==================== ХИТБОКСЫ ==================== */
+const obstacles = [];
+function addCyl(x, z, radius) { obstacles.push({ type: 'cyl', x, z, radius }); }
+
+/* ==================== ДЕРЕВЬЯ ==================== */
+const dummy = new THREE.Object3D();
+const treeData = [];
+
+const pineTrunkMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 1, flatShading: true });
+const pineLeaf1Mat = new THREE.MeshStandardMaterial({ color: 0x2d6b3a, roughness: 0.9, flatShading: true });
+const pineLeaf2Mat = new THREE.MeshStandardMaterial({ color: 0x3f8a4a, roughness: 0.9, flatShading: true });
+const pineTrunkGeo = new THREE.CylinderGeometry(0.18, 0.28, 1.6, 8);
+const pineLeaf1Geo = new THREE.ConeGeometry(1.3, 2.2, 8);
+const pineLeaf2Geo = new THREE.ConeGeometry(0.95, 1.7, 8);
+const pineTrunkInst = new THREE.InstancedMesh(pineTrunkGeo, pineTrunkMat, PINE_COUNT);
+pineTrunkInst.castShadow = true; pineTrunkInst.receiveShadow = true;
+const pineLeaf1Inst = new THREE.InstancedMesh(pineLeaf1Geo, pineLeaf1Mat, PINE_COUNT);
+pineLeaf1Inst.castShadow = true;
+const pineLeaf2Inst = new THREE.InstancedMesh(pineLeaf2Geo, pineLeaf2Mat, PINE_COUNT);
+pineLeaf2Inst.castShadow = true;
+
+const oakTrunkMat = new THREE.MeshStandardMaterial({ color: 0x5a3a1e, roughness: 1, flatShading: true });
+const oakCanopyMat = new THREE.MeshStandardMaterial({ color: 0x4a7a2a, roughness: 0.9, flatShading: true });
+const oakTrunkGeo = new THREE.CylinderGeometry(0.3, 0.42, 2.2, 8);
+const oakCanopyGeo = new THREE.IcosahedronGeometry(1.6, 2);
+const oakTrunkInst = new THREE.InstancedMesh(oakTrunkGeo, oakTrunkMat, OAK_COUNT);
+oakTrunkInst.castShadow = true; oakTrunkInst.receiveShadow = true;
+const oakCanopyInst = new THREE.InstancedMesh(oakCanopyGeo, oakCanopyMat, OAK_COUNT);
+oakCanopyInst.castShadow = true;
+
+const birchTrunkMat = new THREE.MeshStandardMaterial({ color: 0xe8e0d0, roughness: 0.7, flatShading: true });
+const birchCanopyMat = new THREE.MeshStandardMaterial({ color: 0x8ac05a, roughness: 0.9, flatShading: true });
+const birchTrunkGeo = new THREE.CylinderGeometry(0.12, 0.16, 2.4, 8);
+const birchCanopyGeo = new THREE.IcosahedronGeometry(1.1, 2);
+const birchTrunkInst = new THREE.InstancedMesh(birchTrunkGeo, birchTrunkMat, BIRCH_COUNT);
+birchTrunkInst.castShadow = true; birchTrunkInst.receiveShadow = true;
+const birchCanopyInst = new THREE.InstancedMesh(birchCanopyGeo, birchCanopyMat, BIRCH_COUNT);
+birchCanopyInst.castShadow = true;
+
+const smallTreeTrunkMat = new THREE.MeshStandardMaterial({ color: 0x7a5a3a, roughness: 1, flatShading: true });
+const smallTreeLeafMat = new THREE.MeshStandardMaterial({ color: 0x4a9a5a, roughness: 0.9, flatShading: true });
+const smallTreeTrunkGeo = new THREE.CylinderGeometry(0.06, 0.1, 0.5, 6);
+const smallTreeLeafGeo = new THREE.ConeGeometry(0.45, 0.9, 6);
+const smallTreeTrunkInst = new THREE.InstancedMesh(smallTreeTrunkGeo, smallTreeTrunkMat, SMALL_TREE_COUNT);
+smallTreeTrunkInst.castShadow = true;
+const smallTreeLeafInst = new THREE.InstancedMesh(smallTreeLeafGeo, smallTreeLeafMat, SMALL_TREE_COUNT);
+smallTreeLeafInst.castShadow = true;
+
+function randomTreePosition(minH = WATER_LEVEL+3, maxH = 30) {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const x = (Math.random()-0.5)*(WORLD_SIZE-40);
+    const z = (Math.random()-0.5)*(WORLD_SIZE-40);
+    const h = getTerrainYAt(x, z);
+    if (h > minH && h < maxH) return { x, z, h };
+  }
+  return null;
+}
+
+let pineIdx = 0;
+for (let i = 0; i < PINE_COUNT; i++) {
+  const p = randomTreePosition(); if (!p) continue;
+  const s = 0.8+Math.random()*0.9, rotY = Math.random()*Math.PI*2;
+  dummy.position.set(p.x, p.h+0.8*s, p.z); dummy.rotation.set(0, rotY, 0); dummy.scale.set(s, s, s); dummy.updateMatrix();
+  pineTrunkInst.setMatrixAt(pineIdx, dummy.matrix);
+  dummy.position.set(p.x, p.h+2.1*s, p.z); dummy.updateMatrix();
+  pineLeaf1Inst.setMatrixAt(pineIdx, dummy.matrix);
+  dummy.position.set(p.x, p.h+3.2*s, p.z); dummy.updateMatrix();
+  pineLeaf2Inst.setMatrixAt(pineIdx, dummy.matrix);
+  treeData.push({ x: p.x, z: p.z, y: p.h, hp: 10, maxHp: 10, alive: true, type: 'pine', idx: pineIdx, insts: [pineTrunkInst, pineLeaf1Inst, pineLeaf2Inst] });
+  addCyl(p.x, p.z, 0.4*s);
+  pineIdx++;
+}
+for (let i = pineIdx; i < PINE_COUNT; i++) { dummy.position.set(0,-9999,0); dummy.scale.set(0,0,0); dummy.updateMatrix(); pineTrunkInst.setMatrixAt(i,dummy.matrix); pineLeaf1Inst.setMatrixAt(i,dummy.matrix); pineLeaf2Inst.setMatrixAt(i,dummy.matrix); }
+
+let oakIdx = 0;
+for (let i = 0; i < OAK_COUNT; i++) {
+  const p = randomTreePosition(); if (!p) continue;
+  const s = 0.9+Math.random()*0.7, rotY = Math.random()*Math.PI*2;
+  dummy.position.set(p.x, p.h+1.1*s, p.z); dummy.rotation.set(0, rotY, 0); dummy.scale.set(s, s, s); dummy.updateMatrix();
+  oakTrunkInst.setMatrixAt(oakIdx, dummy.matrix);
+  dummy.position.set(p.x, p.h+3.0*s, p.z); dummy.rotation.set(Math.random()*0.3, Math.random()*Math.PI*2, Math.random()*0.3); dummy.scale.set(s, s*1.1, s); dummy.updateMatrix();
+  oakCanopyInst.setMatrixAt(oakIdx, dummy.matrix);
+  treeData.push({ x: p.x, z: p.z, y: p.h, hp: 12, maxHp: 12, alive: true, type: 'oak', idx: oakIdx, insts: [oakTrunkInst, oakCanopyInst] });
+  addCyl(p.x, p.z, 0.5*s);
+  oakIdx++;
+}
+for (let i = oakIdx; i < OAK_COUNT; i++) { dummy.position.set(0,-9999,0); dummy.scale.set(0,0,0); dummy.updateMatrix(); oakTrunkInst.setMatrixAt(i,dummy.matrix); oakCanopyInst.setMatrixAt(i,dummy.matrix); }
+
+let birchIdx = 0;
+for (let i = 0; i < BIRCH_COUNT; i++) {
+  const p = randomTreePosition(); if (!p) continue;
+  const s = 0.85+Math.random()*0.6, rotY = Math.random()*Math.PI*2;
+  dummy.position.set(p.x, p.h+1.2*s, p.z); dummy.rotation.set(0, rotY, 0); dummy.scale.set(s, s, s); dummy.updateMatrix();
+  birchTrunkInst.setMatrixAt(birchIdx, dummy.matrix);
+  dummy.position.set(p.x, p.h+3.2*s, p.z); dummy.rotation.set(Math.random()*0.2, Math.random()*Math.PI*2, Math.random()*0.2); dummy.scale.set(s, s*1.1, s); dummy.updateMatrix();
+  birchCanopyInst.setMatrixAt(birchIdx, dummy.matrix);
+  treeData.push({ x: p.x, z: p.z, y: p.h, hp: 8, maxHp: 8, alive: true, type: 'birch', idx: birchIdx, insts: [birchTrunkInst, birchCanopyInst] });
+  addCyl(p.x, p.z, 0.3*s);
+  birchIdx++;
+}
+for (let i = birchIdx; i < BIRCH_COUNT; i++) { dummy.position.set(0,-9999,0); dummy.scale.set(0,0,0); dummy.updateMatrix(); birchTrunkInst.setMatrixAt(i,dummy.matrix); birchCanopyInst.setMatrixAt(i,dummy.matrix); }
+
+let smallIdx = 0;
+for (let i = 0; i < SMALL_TREE_COUNT; i++) {
+  const p = randomTreePosition(WATER_LEVEL+2, 25); if (!p) continue;
+  const s = 0.8+Math.random()*0.5, rotY = Math.random()*Math.PI*2;
+  dummy.position.set(p.x, p.h+0.25*s, p.z); dummy.rotation.set(0, rotY, 0); dummy.scale.set(s, s, s); dummy.updateMatrix();
+  smallTreeTrunkInst.setMatrixAt(smallIdx, dummy.matrix);
+  dummy.position.set(p.x, p.h+0.85*s, p.z); dummy.updateMatrix();
+  smallTreeLeafInst.setMatrixAt(smallIdx, dummy.matrix);
+  treeData.push({ x: p.x, z: p.z, y: p.h, hp: 4, maxHp: 4, alive: true, type: 'small', idx: smallIdx, insts: [smallTreeTrunkInst, smallTreeLeafInst] });
+  addCyl(p.x, p.z, 0.2*s);
+  smallIdx++;
+}
+for (let i = smallIdx; i < SMALL_TREE_COUNT; i++) { dummy.position.set(0,-9999,0); dummy.scale.set(0,0,0); dummy.updateMatrix(); smallTreeTrunkInst.setMatrixAt(i,dummy.matrix); smallTreeLeafInst.setMatrixAt(i,dummy.matrix); }
+
+pineTrunkInst.instanceMatrix.needsUpdate = true;
+pineLeaf1Inst.instanceMatrix.needsUpdate = true;
+pineLeaf2Inst.instanceMatrix.needsUpdate = true;
+oakTrunkInst.instanceMatrix.needsUpdate = true;
+oakCanopyInst.instanceMatrix.needsUpdate = true;
+birchTrunkInst.instanceMatrix.needsUpdate = true;
+birchCanopyInst.instanceMatrix.needsUpdate = true;
+smallTreeTrunkInst.instanceMatrix.needsUpdate = true;
+smallTreeLeafInst.instanceMatrix.needsUpdate = true;
+
+scene.add(pineTrunkInst, pineLeaf1Inst, pineLeaf2Inst);
+scene.add(oakTrunkInst, oakCanopyInst);
+scene.add(birchTrunkInst, birchCanopyInst);
+scene.add(smallTreeTrunkInst, smallTreeLeafInst);
+
+/* ==================== КАМНИ / КРЕМЕНЬ / ВЕТКИ ==================== */
+const rockGeo = new THREE.IcosahedronGeometry(0.32, 1);
+const rockMat = new THREE.MeshStandardMaterial({ color: 0x8a8a80, roughness: 0.95, flatShading: true });
+const rockInst = new THREE.InstancedMesh(rockGeo, rockMat, ROCK_COUNT);
+rockInst.castShadow = true; rockInst.receiveShadow = true;
+const rockData = [];
+for (let i = 0; i < ROCK_COUNT; i++) {
+  let x=0,z=0,h=1,ok=false,a=0;
+  while(!ok && a<60) { a++; x=(Math.random()-0.5)*(WORLD_SIZE-40); z=(Math.random()-0.5)*(WORLD_SIZE-40); h=getTerrainYAt(x,z); if(h>WATER_LEVEL+0.8) ok=true; }
+  const s = 0.8+Math.random()*0.7;
+  dummy.position.set(x, h+0.15*s, z); dummy.rotation.set(Math.random(), Math.random(), Math.random()); dummy.scale.set(s, s*0.8, s); dummy.updateMatrix();
+  rockInst.setMatrixAt(i, dummy.matrix);
+  rockData.push({ x, z, y: h, alive: true, idx: i, scale: s });
+}
+rockInst.instanceMatrix.needsUpdate = true;
+scene.add(rockInst);
+
+const flintGeo = new THREE.IcosahedronGeometry(0.22, 1);
+const flintMat = new THREE.MeshStandardMaterial({ color: 0xe8e8dc, roughness: 0.4, metalness: 0.15, flatShading: true, emissive: 0x333322, emissiveIntensity: 0.15 });
+const flintInst = new THREE.InstancedMesh(flintGeo, flintMat, FLINT_COUNT);
+flintInst.castShadow = true;
+const flintData = [];
+for (let i = 0; i < FLINT_COUNT; i++) {
+  let x=0,z=0,h=0,ok=false,a=0;
+  while(!ok && a<300) { a++; x=(Math.random()-0.5)*(WORLD_SIZE-40); z=(Math.random()-0.5)*(WORLD_SIZE-40); h=getTerrainYAt(x,z); if(h>WATER_LEVEL+0.4 && h<WATER_LEVEL+2.5) ok=true; }
+  if (!ok) continue;
+  const s = 0.9+Math.random()*0.5;
+  dummy.position.set(x, h+0.1, z); dummy.rotation.set(Math.random(), Math.random(), Math.random()); dummy.scale.set(s, s*0.6, s*1.4); dummy.updateMatrix();
+  flintInst.setMatrixAt(i, dummy.matrix);
+  flintData.push({ x, z, y: h, alive: true, idx: i, scale: s });
+}
+flintInst.instanceMatrix.needsUpdate = true;
+scene.add(flintInst);
+
+const branchGeo = new THREE.CylinderGeometry(0.05, 0.07, 0.7, 6);
+const branchMat = new THREE.MeshStandardMaterial({ color: 0x5a3a1e, roughness: 1, flatShading: true });
+const branchInst = new THREE.InstancedMesh(branchGeo, branchMat, BRANCH_COUNT);
+branchInst.castShadow = true;
+const branchData = [];
+for (let i = 0; i < BRANCH_COUNT; i++) {
+  const tree = treeData[Math.floor(Math.random()*treeData.length)]; if (!tree) continue;
+  let x=0,z=0,h=0,ok=false,a=0;
+  while(!ok && a<15) { a++; const ang=Math.random()*Math.PI*2, d=0.8+Math.random()*1.8; x=tree.x+Math.cos(ang)*d; z=tree.z+Math.sin(ang)*d; h=getTerrainYAt(x,z); if(h>WATER_LEVEL+0.6) ok=true; }
+  if (!ok) continue;
+  dummy.position.set(x, h+0.06, z); dummy.rotation.set(Math.PI/2, Math.random()*Math.PI*2, 0); dummy.scale.set(1,1,1); dummy.updateMatrix();
+  branchInst.setMatrixAt(i, dummy.matrix);
+  branchData.push({ x, z, y: h, alive: true, idx: i });
+}
+branchInst.instanceMatrix.needsUpdate = true;
+scene.add(branchInst);
+
+/* ==================== ТРАВА ==================== */
+function makeGrassCluster() {
+  const geos = [];
+  for (let i = 0; i < 4; i++) {
+    const g = new THREE.ConeGeometry(0.035 + Math.random()*0.025, 0.45 + Math.random()*0.35, 3);
+    g.translate((Math.random()-0.5)*0.28, 0.28, (Math.random()-0.5)*0.28);
+    g.rotateY(Math.random() * Math.PI * 2);
+    geos.push(g.toNonIndexed());
+  }
+  const posArr = [], normArr = [];
+  for (const g of geos) {
+    posArr.push(...g.attributes.position.array);
+    normArr.push(...g.attributes.normal.array);
+  }
+  const merged = new THREE.BufferGeometry();
+  merged.setAttribute('position', new THREE.Float32BufferAttribute(posArr, 3));
+  merged.setAttribute('normal', new THREE.Float32BufferAttribute(normArr, 3));
+  return merged;
+}
+const grassGeo = makeGrassCluster();
+
+const grassShaders = [];
+function attachGrassShader(mat) {
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uPlayerPos = { value: new THREE.Vector3(0, -9999, 0) };
+    shader.uniforms.uTime = { value: 0 };
+    shader.vertexShader = `uniform vec3 uPlayerPos;\nuniform float uTime;\n` + shader.vertexShader;
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <begin_vertex>',
+      `
+      vec3 transformed = vec3(position);
+      #ifdef USE_INSTANCING
+        vec3 instPos = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
+      #else
+        vec3 instPos = vec3(0.0);
+      #endif
+      float windPhase = uTime * 1.6 + instPos.x * 0.3 + instPos.z * 0.2;
+      float windAmt = sin(windPhase) * 0.12 + sin(windPhase * 0.7) * 0.06;
+      transformed.x += windAmt * position.y * position.y;
+      vec2 delta = instPos.xz - uPlayerPos.xz;
+      float dist = length(delta);
+      float bend = smoothstep(2.0, 0.2, dist);
+      vec2 pushDir = normalize(delta + vec2(0.0001, 0.0001));
+      transformed.xz += pushDir * bend * position.y * 1.1;
+      transformed.y *= 1.0 - bend * 0.7;
+      `
+    );
+    grassShaders.push(shader);
+  };
+}
+
+const grassMatA = new THREE.MeshStandardMaterial({ color: 0x6a9a3a, roughness: 0.9, flatShading: true });
+const grassMatB = new THREE.MeshStandardMaterial({ color: 0x7aaa4a, roughness: 0.9, flatShading: true });
+const grassMatC = new THREE.MeshStandardMaterial({ color: 0x5a8a2a, roughness: 0.9, flatShading: true });
+attachGrassShader(grassMatA);
+attachGrassShader(grassMatB);
+attachGrassShader(grassMatC);
+
+const grassA = new THREE.InstancedMesh(grassGeo, grassMatA, GRASS_PER_VARIANT);
+const grassB = new THREE.InstancedMesh(grassGeo, grassMatB, GRASS_PER_VARIANT);
+const grassC = new THREE.InstancedMesh(grassGeo, grassMatC, GRASS_PER_VARIANT);
+
+function placeGrass(inst, count) {
+  let idx = 0, a = 0;
+  while (idx < count && a < count * 3) {
+    a++;
+    const x = (Math.random()-0.5)*(WORLD_SIZE-20);
+    const z = (Math.random()-0.5)*(WORLD_SIZE-20);
+    const h = getTerrainYAt(x, z);
+    if (h < WATER_LEVEL+0.8 || h > 15) continue;
+    const s = 0.7 + Math.random()*0.6;
+    dummy.position.set(x, h, z);
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(s, s, s);
+    dummy.updateMatrix();
+    inst.setMatrixAt(idx, dummy.matrix);
+    idx++;
+  }
+  dummy.position.set(0,-9999,0); dummy.scale.set(0,0,0); dummy.updateMatrix();
+  for (let i = idx; i < count; i++) inst.setMatrixAt(i, dummy.matrix);
+  inst.instanceMatrix.needsUpdate = true;
+}
+placeGrass(grassA, GRASS_PER_VARIANT);
+placeGrass(grassB, GRASS_PER_VARIANT);
+placeGrass(grassC, GRASS_PER_VARIANT);
+scene.add(grassA, grassB, grassC);
+
+/* ==================== ИГРОК ==================== */
+const player = new THREE.Group();
+scene.add(player);
+
+let playerModel = null;
+let mixer = null;
+let actions = {};
+let activeAction = null;
+
+const velocity = new THREE.Vector3();
+let vy = 0, onGround = true;
+let currentSpeed01 = 0;
+let oxygen = OXYGEN_MAX;
+let isSwimming = false, isUnderwater = false;
+
+// Умный спавн
+function findSpawn() {
+  for (let attempt = 0; attempt < 300; attempt++) {
+    const angle = Math.random() * Math.PI * 2;
+    const radius = 50 + Math.random() * (WORLD_SIZE * 0.4);
+    const x = Math.cos(angle) * radius;
+    const z = Math.sin(angle) * radius;
+    const h = getTerrainYAt(x, z);
+    if (h < WATER_LEVEL + 5) continue;
+    let isMainland = true;
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      if (getTerrainYAt(x + Math.cos(a) * 80, z + Math.sin(a) * 80) < WATER_LEVEL + 1) {
+        isMainland = false; break;
+      }
+    }
+    if (isMainland) return { x, z };
+  }
+  return { x: 0, z: 0 };
+}
+
+// Загрузка модели из интернета
+function loadPlayerModel() {
+  return new Promise((resolve) => {
+    const loader = new THREE.GLTFLoader();
+    loader.load('https://threejs.org/examples/models/gltf/Soldier.glb', (gltf) => {
+      playerModel = gltf.scene;
+      playerModel.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
+      playerModel.scale.set(1.5, 1.5, 1.5);
+      player.add(playerModel);
+
+      mixer = new THREE.AnimationMixer(playerModel);
+      gltf.animations.forEach(clip => { actions[clip.name] = mixer.clipAction(clip); });
+      if (actions['Idle']) { activeAction = actions['Idle']; activeAction.play(); }
+      resolve();
+    }, undefined, () => {
+      // Запасной вариант (если нет интернета)
+      const g = new THREE.Group();
+      const skinMat = new THREE.MeshStandardMaterial({ color: 0x8F6E43 });
+      const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 0.8, 4, 8), skinMat);
+      torso.position.y = 1.1; torso.castShadow = true; g.add(torso);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), skinMat);
+      head.position.y = 1.8; head.castShadow = true; g.add(head);
+      const legL = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.6, 4, 8), skinMat);
+      legL.position.set(-0.15, 0.4, 0); g.add(legL);
+      const legR = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.6, 4, 8), skinMat);
+      legR.position.set(0.15, 0.4, 0); g.add(legR);
+      playerModel = g;
+      player.add(playerModel);
+      resolve();
+    });
+  });
+}
+
+function fadeToAction(name, duration) {
+  if (!mixer || !actions[name]) return;
+  const nextAction = actions[name];
+  if (nextAction === activeAction) return;
+  if (activeAction) activeAction.fadeOut(duration);
+  nextAction.reset().setEffectiveWeight(1).fadeIn(duration).play();
+  activeAction = nextAction;
+}
+
+/* ==================== UI / ИНВЕНТАРЬ ==================== */
+const inventory = new Array(INV_SLOTS).fill(null);
+const hotbar = new Array(HOTBAR_SLOTS).fill(null);
+let selectedSlot = -1;
+
+const ITEM_DEFS = {
+  stoneAxe: { icon: '<span class="ui-icon">🪓</span>', name: 'Каменный топор', isTool: true },
+  flintAxe: { icon: '<span class="ui-icon">🪓</span>', name: 'Кремневый топор', isTool: true },
+  hammer:   { icon: '<span class="ui-icon">🔨</span>', name: 'Молот', isTool: true },
+  torch:    { icon: '<span class="ui-icon">🔥</span>', name: 'Факел', isTool: true },
+  wood:     { icon: '<span class="ui-icon">🪵</span>', name: 'Дерево', isResource: true },
+  stone:    { icon: '<span class="ui-icon">🪨</span>', name: 'Камень', isResource: true },
+  flint:    { icon: '<span class="ui-icon">⚪</span>', name: 'Кремень', isResource: true },
+  resin:    { icon: '<span class="ui-icon">🟠</span>', name: 'Смола', isResource: true },
+};
+
+function getItemCount(id) {
+  let n = 0;
+  for (const s of inventory) if (s && s.id === id) n += s.count || 1;
+  for (const s of hotbar) if (s && s.id === id) n += s.count || 1;
+  return n;
+}
+function hasTool(id) {
+  for (const s of inventory) if (s && s.id === id) return true;
+  for (const s of hotbar) if (s && s.id === id) return true;
+  return false;
+}
+function addItem(id, count = 1) {
+  const def = ITEM_DEFS[id]; if (!def) return;
+  if (def.isResource) {
+    for (const arr of [inventory, hotbar]) for (let i = 0; i < arr.length; i++) {
+      if (arr[i] && arr[i].id === id) { arr[i].count += count; refreshUI(); return; }
+    }
+    for (const arr of [inventory, hotbar]) for (let i = 0; i < arr.length; i++) {
+      if (!arr[i]) { arr[i] = { id, count }; refreshUI(); return; }
+    }
+  } else {
+    for (const arr of [hotbar, inventory]) for (let i = 0; i < arr.length; i++) {
+      if (!arr[i]) { arr[i] = { id }; refreshUI(); return; }
+    }
+  }
+}
+function removeItem(id, count) {
+  for (const arr of [inventory, hotbar]) {
+    for (let i = 0; i < arr.length && count > 0; i++) {
+      if (arr[i] && arr[i].id === id) {
+        if (ITEM_DEFS[id].isResource) {
+          const take = Math.min(count, arr[i].count || 1);
+          arr[i].count -= take; if (arr[i].count <= 0) arr[i] = null; count -= take;
+        } else { arr[i] = null; count--; }
+      }
+    }
+  }
+}
+
+const hotbarEl = document.getElementById('hotbar');
+function renderOutsideHotbar() {
+  hotbarEl.innerHTML = '';
+  for (let i = 0; i < HOTBAR_SLOTS; i++) {
+    const slot = document.createElement('div');
+    slot.className = 'hotbar-slot' + (i === selectedSlot ? ' selected' : '');
+    let inner = `<span class="num">${i+1}</span>`;
+    const item = hotbar[i];
+    if (item) { inner += ITEM_DEFS[item.id].icon; if (ITEM_DEFS[item.id].isResource) inner += `<span class="cnt">${item.count || 1}</span>`; }
+    slot.innerHTML = inner;
+    slot.addEventListener('click', () => selectSlot(i));
+    hotbarEl.appendChild(slot);
+  }
+}
+
+const invGrid = document.getElementById('invGrid');
+const hotbarMGrid = document.getElementById('hotbarMGrid');
+let dragState = null;
+
+function attachDrag(slotEl, fromType, index) {
+  slotEl.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    const arr = fromType === 'inv' ? inventory : hotbar;
+    if (!arr[index]) return;
+    dragState = { from: fromType, index, startX: e.clientX, startY: e.clientY, moved: false };
+    const ghost = document.createElement('div'); ghost.className = 'drag-ghost';
+    ghost.innerHTML = ITEM_DEFS[arr[index].id].icon;
+    ghost.style.cssText = `position:fixed;left:${e.clientX}px;top:${e.clientY}px;font-size:36px;transform:translate(-50%,-50%);z-index:10000;`;
+    document.body.appendChild(ghost); dragState.ghostEl = ghost;
+    window.addEventListener('pointermove', onDragMove); window.addEventListener('pointerup', onDragUp);
+  });
+}
+function onDragMove(e) {
+  if (!dragState) return;
+  if (Math.hypot(e.clientX - dragState.startX, e.clientY - dragState.startY) > 5) dragState.moved = true;
+  dragState.ghostEl.style.left = e.clientX + 'px'; dragState.ghostEl.style.top = e.clientY + 'px';
+}
+function onDragUp(e) {
+  if (!dragState) return;
+  window.removeEventListener('pointermove', onDragMove); window.removeEventListener('pointerup', onDragUp);
+  if (dragState.ghostEl) dragState.ghostEl.remove();
+  if (!dragState.moved) { if (dragState.from === 'hotbar') selectSlot(dragState.index); dragState = null; return; }
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const target = el ? el.closest('.slot-target') : null;
+  if (target) {
+    const toFrom = target.dataset.from; const toIdx = parseInt(target.dataset.index);
+    if (!(toFrom === dragState.from && toIdx === dragState.index)) moveItem(dragState.from, dragState.index, toFrom, toIdx);
+  }
+  dragState = null;
+}
+function moveItem(fromType, fromIdx, toType, toIdx) {
+  const fromArr = fromType === 'inv' ? inventory : hotbar; const toArr = toType === 'inv' ? inventory : hotbar;
+  const item = fromArr[fromIdx]; if (!item) return;
+  const target = toArr[toIdx];
+  if (target && target.id === item.id && ITEM_DEFS[item.id].isResource) {
+    target.count = (target.count || 1) + (item.count || 1); fromArr[fromIdx] = null;
+  } else { fromArr[fromIdx] = target; toArr[toIdx] = item; }
+  refreshUI(); updateBuildBtn();
+}
+function renderInventoryModal() {
+  invGrid.innerHTML = '';
+  for (let i = 0; i < INV_SLOTS; i++) {
+    const slot = document.createElement('div'); slot.className = 'inv-slot slot-target';
+    slot.dataset.from = 'inv'; slot.dataset.index = i;
+    const item = inventory[i];
+    if (item) { slot.innerHTML = ITEM_DEFS[item.id].icon + (ITEM_DEFS[item.id].isResource ? `<span class="count">${item.count || 1}</span>` : ''); }
+    attachDrag(slot, 'inv', i); invGrid.appendChild(slot);
+  }
+}
+function renderHotbarModal() {
+  hotbarMGrid.innerHTML = '';
+  for (let i = 0; i < HOTBAR_SLOTS; i++) {
+    const slot = document.createElement('div'); slot.className = 'hotbar-m-slot slot-target';
+    slot.dataset.from = 'hotbar'; slot.dataset.index = i;
+    let inner = `<span class="num">${i+1}</span>`; const item = hotbar[i];
+    if (item) { inner += ITEM_DEFS[item.id].icon; if (ITEM_DEFS[item.id].isResource) inner += `<span class="count">${item.count || 1}</span>`; }
+    slot.innerHTML = inner; attachDrag(slot, 'hotbar', i); hotbarMGrid.appendChild(slot);
+  }
+}
+function refreshUI() {
+  renderOutsideHotbar();
+  if (modalOpen) { renderInventoryModal(); renderHotbarModal(); }
+}
+function selectSlot(i) {
+  if (i < 0 || i >= HOTBAR_SLOTS) return;
+  if (!hotbar[i]) { selectedSlot = -1; refreshUI(); updateBuildBtn(); return; }
+  if (i === selectedSlot) selectedSlot = -1; else selectedSlot = i;
+  refreshUI(); updateBuildBtn();
+}
+
+/* ==================== КРАФТ / СТРОИТЕЛЬСТВО ==================== */
+const craftList = document.getElementById('craftList');
+function renderCraft() {
+  const items = [
+    { id: 'stoneAxe', name: 'Каменный топор',  desc: '5 дерева · 4 камня', can: getItemCount('wood')>=5 && getItemCount('stone')>=4, done: hasTool('stoneAxe') },
+    { id: 'flintAxe', name: 'Кремневый топор', desc: '4 дерева · 6 кремня', can: getItemCount('wood')>=4 && getItemCount('flint')>=6, done: hasTool('flintAxe') },
+    { id: 'hammer',   name: 'Молот',           desc: '3 дерева · 2 камня',  can: getItemCount('wood')>=3 && getItemCount('stone')>=2, done: hasTool('hammer') },
+    { id: 'torch',    name: 'Факел',           desc: '1 дерево · 1 смола',  can: getItemCount('wood')>=1 && getItemCount('resin')>=1, done: hasTool('torch') },
+  ];
+  craftList.innerHTML = items.map(it => {
+    const cls = it.done ? 'craft-item done' : (it.can ? 'craft-item enough' : 'craft-item');
+    return `<button class="${cls}" data-craft="${it.id}">${it.done ? it.name + ' — готово' : it.name}<small>${it.desc}</small></button>`;
+  }).join('');
+  craftList.querySelectorAll('[data-craft]').forEach(b => b.addEventListener('click', () => doCraft(b.dataset.craft)));
+}
+function doCraft(id) {
+  if (id === 'stoneAxe') {
+    if (hasTool('stoneAxe')) return toast('Уже есть');
+    if (getItemCount('wood')<5 || getItemCount('stone')<4) return toast('Не хватает');
+    removeItem('wood', 5); removeItem('stone', 4); addItem('stoneAxe'); toast('Каменный топор!');
+  } else if (id === 'flintAxe') {
+    if (hasTool('flintAxe')) return toast('Уже есть');
+    if (getItemCount('wood')<4 || getItemCount('flint')<6) return toast('Не хватает');
+    removeItem('wood', 4); removeItem('flint', 6); addItem('flintAxe'); toast('Кремневый топор!');
+  } else if (id === 'hammer') {
+    if (hasTool('hammer')) return toast('Уже есть');
+    if (getItemCount('wood')<3 || getItemCount('stone')<2) return toast('Не хватает');
+    removeItem('wood', 3); removeItem('stone', 2); addItem('hammer'); toast('Молот!');
+  } else if (id === 'torch') {
+    if (hasTool('torch')) return toast('Уже есть');
+    if (getItemCount('wood')<1 || getItemCount('resin')<1) return toast('Нужно 1🪵 1🟠');
+    removeItem('wood', 1); removeItem('resin', 1); addItem('torch'); toast('Факел!');
+  }
+  refreshUI(); renderCraft();
+}
+
+const BUILD_PIECES = {
+  floor_wood: { cat: 'floor', label: 'Деревянный пол', icon: '<span class="ui-icon">▭</span>', size: [2, 0.2, 2], yOff: 0.1, cost: { wood: 1 }, color: 0x8a6a3a },
+  floor_stone: { cat: 'floor', label: 'Каменный пол', icon: '<span class="ui-icon">▭</span>', size: [2, 0.2, 2], yOff: 0.1, cost: { stone: 2 }, color: 0x8a8a7e },
+  wall_wood: { cat: 'wall', label: 'Деревянная стена', icon: '<span class="ui-icon">▮</span>', size: [2, 2, 0.2], yOff: 1.0, cost: { wood: 1 }, color: 0x8a6a3a },
+  wall_stone: { cat: 'wall', label: 'Каменная стена', icon: '<span class="ui-icon">▮</span>', size: [2, 2, 0.2], yOff: 1.0, cost: { stone: 2 }, color: 0x8a8a7e },
+  roof_wood: { cat: 'roof', label: 'Деревянная крыша', icon: '<span class="ui-icon">◬</span>', size: [2, 1.5, 2], yOff: 1.5, cost: { wood: 2 }, color: 0x8a4a2a },
+};
+const buildCategories = [{ id: 'floor', label: 'Полы' }, { id: 'wall', label: 'Стены' }, { id: 'roof', label: 'Крыши' }];
+let activeBuildCat = 'floor';
+const buildTabsEl = document.getElementById('buildTabs');
+const buildPiecesEl = document.getElementById('buildPieces');
+
+function renderBuildMenu() {
+  buildTabsEl.innerHTML = buildCategories.map(c => `<button class="build-tab ${c.id===activeBuildCat?'active':''}" data-cat="${c.id}">${c.label}</button>`).join('');
+  buildTabsEl.querySelectorAll('[data-cat]').forEach(b => b.addEventListener('click', () => { activeBuildCat = b.dataset.cat; renderBuildMenu(); }));
+  const pieces = Object.entries(BUILD_PIECES).filter(([id, p]) => p.cat === activeBuildCat);
+  buildPiecesEl.innerHTML = pieces.map(([id, p]) => {
+    const costStr = Object.entries(p.cost).map(([k, v]) => `${v}${ITEM_DEFS[k].icon}`).join(' ');
+    const can = Object.entries(p.cost).every(([k, v]) => getItemCount(k) >= v);
+    return `<button class="${can?'build-piece enough':'build-piece disabled'}" data-piece="${id}"><span class="icon">${p.icon}</span>${p.label}<span class="cost">${costStr}</span></button>`;
+  }).join('');
+  buildPiecesEl.querySelectorAll('[data-piece]').forEach(b => b.addEventListener('click', () => startPlacing(b.dataset.piece)));
+}
+
+let placingPiece = null;
+let ghostMesh = null;
+function startPlacing(id) {
+  const piece = BUILD_PIECES[id]; if (!piece) return;
+  if (!Object.entries(piece.cost).every(([k, v]) => getItemCount(k) >= v)) return toast('Не хватает ресурсов');
+  if (ghostMesh) { scene.remove(ghostMesh); ghostMesh = null; }
+  const geo = new THREE.BoxGeometry(piece.size[0], piece.size[1], piece.size[2]);
+  const mat = new THREE.MeshBasicMaterial({ color: 0x66ff66, transparent: true, opacity: 0.45, depthWrite: false });
+  ghostMesh = new THREE.Mesh(geo, mat); scene.add(ghostMesh); placingPiece = id;
+  closeAllModals(); updateBuildBtn(); toast(`Размещение: ${piece.label}`);
+}
+function cancelPlacing() { if (ghostMesh) { scene.remove(ghostMesh); ghostMesh = null; } placingPiece = null; updateBuildBtn(); }
+function updateGhostPosition() {
+  if (!ghostMesh || !placingPiece) return;
+  const p = BUILD_PIECES[placingPiece];
+  const bx = player.position.x + Math.sin(player.rotation.y) * 2.8;
+  const bz = player.position.z + Math.cos(player.rotation.y) * 2.8;
+  const by = getTerrainYAt(bx, bz);
+  ghostMesh.position.set(bx, by + p.yOff, bz); ghostMesh.rotation.y = player.rotation.y;
+  ghostMesh.material.color.setHex(by >= WATER_LEVEL - 0.5 ? 0x66ff66 : 0xff4444);
+}
+const buildBtn = document.getElementById('buildBtn');
+function updateBuildBtn() {
+  if (placingPiece) { buildBtn.style.display = 'block'; buildBtn.innerHTML = '<span class="ui-icon">✓</span> Поставить'; return; }
+  const item = selectedSlot >= 0 ? hotbar[selectedSlot] : null;
+  if (item && item.id === 'hammer' && !modalOpen) {
+    buildBtn.style.display = 'block'; buildBtn.innerHTML = '<span class="ui-icon">🔨</span> Строить';
+  } else buildBtn.style.display = 'none';
+}
+buildBtn.addEventListener('click', () => {
+  if (placingPiece) placeCurrentPiece(); else { renderBuildMenu(); openModal(buildModal); }
+});
+function placeCurrentPiece() {
+  if (!placingPiece || !ghostMesh) return;
+  const p = BUILD_PIECES[placingPiece];
+  if (!Object.entries(p.cost).every(([k, v]) => getItemCount(k) >= v)) return toast('Не хватает');
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(p.size[0], p.size[1], p.size[2]),
+    new THREE.MeshStandardMaterial({ color: p.color, roughness: 0.9, flatShading: true })
+  );
+  mesh.position.copy(ghostMesh.position); mesh.rotation.y = ghostMesh.rotation.y;
+  mesh.castShadow = true; mesh.receiveShadow = true; scene.add(mesh);
+  for (const [k, v] of Object.entries(p.cost)) removeItem(k, v);
+  updateGhostPosition();
+}
+
+/* ==================== ДЕЙСТВИЕ ==================== */
+const actionBtn = document.getElementById('action');
+let currentAction = null;
+function setAction(best) {
+  currentAction = best || null;
+  if (currentAction && !placingPiece) { actionBtn.style.display = 'block'; actionBtn.textContent = currentAction.label; }
+  else actionBtn.style.display = 'none';
+}
+actionBtn.addEventListener('click', () => { if (currentAction) doAction(); });
+
+const toastEl = document.getElementById('toast');
+let toastTimer = null;
+function toast(msg) {
+  toastEl.textContent = msg; toastEl.style.opacity = '1';
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.style.opacity = '0', 1600);
+}
+
+/* ==================== УПРАВЛЕНИЕ ==================== */
+const keys = new Set();
+let jumpRequested = false, touchDive = false;
+addEventListener('keydown', e => {
+  keys.add(e.code);
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+  if (e.code === 'KeyE' && currentAction && !modalOpen) doAction();
+  if (e.code === 'Space' && !modalOpen) jumpRequested = true;
+  if (e.code === 'Escape') { closeAllModals(); if (placingPiece) cancelPlacing(); }
+  if (!modalOpen && e.code.startsWith('Digit')) { const n = parseInt(e.code.slice(5)); if (n >= 1 && n <= 9) selectSlot(n - 1); }
+});
+addEventListener('keyup', e => keys.delete(e.code));
+addEventListener('blur', () => { keys.clear(); touchDive = false; });
+
+document.getElementById('jumpBtn').addEventListener('pointerdown', e => { e.preventDefault(); jumpRequested = true; });
+const diveBtnEl = document.getElementById('diveBtn');
+diveBtnEl.addEventListener('pointerdown', e => { e.preventDefault(); touchDive = true; });
+['pointerup','pointerleave','pointercancel'].forEach(ev => diveBtnEl.addEventListener(ev, () => { touchDive = false; }));
+
+/* ==================== КАМЕРА ==================== */
+const isFirstPerson = { value: false };
+document.getElementById('camBtn').addEventListener('click', () => {
+  isFirstPerson.value = !isFirstPerson.value;
+  if (playerModel) playerModel.visible = !isFirstPerson.value;
+  toast(isFirstPerson.value ? 'Вид от 1-го лица' : 'Вид от 3-го лица');
+});
+
+let camYaw = 0; let camPitch = 0.4; let camDist = 8;
+const CAM_MIN = 2; const CAM_MAX = 20;
+let camTouchId = null, camTouchStart = { x: 0, y: 0 };
+let pinchDist = 0;
+
+addEventListener('pointerdown', e => {
+  if (e.pointerType === 'mouse' && e.button !== 2) return;
+  if (modalOpen) return;
+  if (e.clientX > innerWidth * 0.4 && !e.target.closest('button, .modal, #hotbar, #stick')) {
+    if (camTouchId === null) { camTouchId = e.pointerId; camTouchStart = { x: e.clientX, y: e.clientY }; }
+  }
+});
+addEventListener('pointermove', e => {
+  if (e.pointerId === camTouchId) {
+    camYaw -= (e.clientX - camTouchStart.x) * 0.005;
+    camPitch -= (e.clientY - camTouchStart.y) * 0.005;
+    camPitch = Math.max(-1.2, Math.min(1.2, camPitch));
+    camTouchStart = { x: e.clientX, y: e.clientY };
+  }
+});
+function endCamTouch(e) { if (e.pointerId === camTouchId) camTouchId = null; }
+addEventListener('pointerup', endCamTouch); addEventListener('pointercancel', endCamTouch);
+
+let touchPointers = {};
+addEventListener('touchstart', e => {
+  for (let t of e.changedTouches) touchPointers[t.identifier] = t;
+  if (Object.keys(touchPointers).length === 2) {
+    const pts = Object.values(touchPointers);
+    pinchDist = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY);
+  }
+}, {passive: false});
+addEventListener('touchmove', e => {
+  for (let t of e.changedTouches) { if (touchPointers[t.identifier]) touchPointers[t.identifier] = t; }
+  if (Object.keys(touchPointers).length === 2) {
+    const pts = Object.values(touchPointers);
+    const newDist = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY);
+    if (pinchDist > 0) camDist = Math.max(CAM_MIN, Math.min(CAM_MAX, camDist + (pinchDist - newDist) * 0.02));
+    pinchDist = newDist; e.preventDefault();
+  }
+}, {passive: false});
+addEventListener('touchend', e => {
+  for (let t of e.changedTouches) delete touchPointers[t.identifier];
+  if (Object.keys(touchPointers).length < 2) pinchDist = 0;
+});
+
+/* ==================== ДЖОЙСТИК ==================== */
+const stick = document.getElementById('stick'); const knob = document.getElementById('knob');
+let joyId = null, joyOrigin = { x: 0, y: 0 }, joyVec = { x: 0, y: 0 };
+addEventListener('pointerdown', e => {
+  if (e.pointerType === 'mouse' || joyId !== null || modalOpen) return;
+  if (e.clientX > innerWidth * 0.4) return;
+  if (e.target.closest('#topright, #action, #jumpBtn, #diveBtn, #menuBtns, #buildBtn, .modal, #hotbar, #clockBadge, #startScreen')) return;
+  joyId = e.pointerId; joyOrigin = { x: e.clientX, y: e.clientY };
+  stick.style.display = 'block'; stick.style.left = (e.clientX - 60) + 'px'; stick.style.top = (e.clientY - 60) + 'px'; stick.style.bottom = 'auto';
+  knob.style.transform = 'translate(0,0)';
+});
+addEventListener('pointermove', e => {
+  if (e.pointerId !== joyId) return;
+  const dx = e.clientX - joyOrigin.x, dy = e.clientY - joyOrigin.y;
+  const max = 50, len = Math.hypot(dx, dy) || 1;
+  const k = len > max ? max / len : 1;
+  const kx = dx * k, ky = dy * k;
+  knob.style.transform = `translate(${kx}px, ${ky}px)`;
+  joyVec.x = kx / max; joyVec.y = ky / max;
+});
+function endJoy(e) { if (e.pointerId !== joyId) return; joyId = null; joyVec.x = joyVec.y = 0; stick.style.display = 'none'; knob.style.transform = 'translate(0,0)'; }
+addEventListener('pointerup', endJoy); addEventListener('pointercancel', endJoy);
+
+/* ==================== ЛОГИКА ИГРЫ ==================== */
+function dampAngle(cur, target, lambda, dt) {
+  let diff = (target - cur) % (Math.PI * 2);
+  if (diff > Math.PI) diff -= Math.PI * 2;
+  if (diff < -Math.PI) diff += Math.PI * 2;
+  return cur + diff * (1 - Math.exp(-lambda * dt));
+}
+
+function getInput() {
+  if (modalOpen) return { x: 0, z: 0 };
+  let x = 0, z = 0;
+  if (keys.has('KeyW') || keys.has('ArrowUp'))    z -= 1;
+  if (keys.has('KeyS') || keys.has('ArrowDown'))  z += 1;
+  if (keys.has('KeyA') || keys.has('ArrowLeft'))  x -= 1;
+  if (keys.has('KeyD') || keys.has('ArrowRight')) x += 1;
+  x += joyVec.x; z += joyVec.y;
+  const len = Math.hypot(x, z);
+  if (len > 1) { x /= len; z /= len; }
+  return { x, z };
+}
+
+function resolveObstacles() {
+  for (const o of obstacles) {
+    const dx = player.position.x - o.x, dz = player.position.z - o.z;
+    const d = Math.hypot(dx, dz), min = o.radius + PLAYER_RADIUS;
+    if (d < min && d > 0.0001) {
+      const k = min / d; player.position.x = o.x + dx * k; player.position.z = o.z + dz * k;
+    }
+  }
+}
+
+function updatePlayer(dt) {
+  const inp = getInput();
+  const t = 1 - Math.exp(-ACCEL * dt);
+  
+  const fwdX = -Math.sin(camYaw); const fwdZ = -Math.cos(camYaw);
+  const rightX = Math.cos(camYaw); const rightZ = -Math.sin(camYaw);
+  const moveX = fwdX * (-inp.z) + rightX * inp.x;
+  const moveZ = fwdZ * (-inp.z) + rightZ * inp.x;
+
+  const gPre = getTerrainYAt(player.position.x, player.position.z);
+  const inWaterPre = player.position.y < WATER_LEVEL - 0.1;
+  isSwimming = inWaterPre && (WATER_LEVEL - gPre) > SWIM_DEPTH_THRESHOLD;
+  const speedMul = isSwimming ? SWIM_SPEED_MUL : (inWaterPre ? 0.7 : 1.0);
+  
+  velocity.x += (moveX * SPEED * speedMul - velocity.x) * t;
+  velocity.z += (moveZ * SPEED * speedMul - velocity.z) * t;
+  player.position.x += velocity.x * dt; player.position.z += velocity.z * dt;
+  
+  resolveObstacles();
+  const half = WORLD_SIZE / 2 - 5;
+  player.position.x = Math.max(-half, Math.min(half, player.position.x));
+  player.position.z = Math.max(-half, Math.min(half, player.position.z));
+
+  const groundY = getTerrainYAt(player.position.x, player.position.z);
+  const waterSurface = WATER_LEVEL - 0.3;
+  const waterDepth = WATER_LEVEL - groundY;
+  const inWaterNow = player.position.y < WATER_LEVEL - 0.1;
+  isSwimming = inWaterNow && waterDepth > SWIM_DEPTH_THRESHOLD;
+
+  if (isSwimming) {
+    const holdingDive = touchDive || keys.has('ShiftLeft') || keys.has('ShiftRight');
+    if (oxygen <= 0) vy += (waterSurface - player.position.y) * 12 * dt;
+    else if (holdingDive) vy -= DIVE_SPEED * 5 * dt;
+    else vy += (waterSurface - player.position.y) * 6 * dt;
+    vy = Math.max(-DIVE_SPEED, Math.min(vy, 4));
+    if (jumpRequested) vy = Math.max(vy, JUMP_SPEED * 0.5);
+    player.position.y += vy * dt;
+    if (player.position.y < groundY + 0.2) { player.position.y = groundY + 0.2; vy = Math.max(0, vy); }
+    if (player.position.y > waterSurface && vy > 0) { player.position.y = waterSurface; vy = 0; }
+    onGround = false;
+  } else {
+    if (jumpRequested && onGround) { vy = JUMP_SPEED; onGround = false; player.position.y += vy * dt; }
+    else if (!onGround) {
+      vy -= GRAVITY * dt; player.position.y += vy * dt;
+      if (player.position.y <= groundY && vy <= 0) { player.position.y = groundY; vy = 0; onGround = true; }
+    } else {
+      const drop = player.position.y - groundY;
+      if (drop > MAX_STEP_DOWN) { onGround = false; vy = 0; }
+      else { player.position.y = groundY; vy = 0; }
+    }
+  }
+  jumpRequested = false;
+
+  const headY = player.position.y + PLAYER_HEIGHT;
+  isUnderwater = headY < WATER_LEVEL;
+  if (isUnderwater) { oxygen -= OXYGEN_DRAIN * dt; if (oxygen < 0) oxygen = 0; }
+  else { oxygen += OXYGEN_REFILL * dt; if (oxygen > OXYGEN_MAX) oxygen = OXYGEN_MAX; }
+
+  const sp = Math.hypot(velocity.x, velocity.z);
+  currentSpeed01 = onGround ? Math.min(1, sp / SPEED) : 0;
+  
+  if (sp > 0.4) {
+    if (isFirstPerson.value) player.rotation.y = camYaw + Math.PI;
+    else player.rotation.y = dampAngle(player.rotation.y, Math.atan2(velocity.x, velocity.z), 12, dt);
+  }
+  
+  diveBtnEl.style.display = isSwimming ? 'flex' : 'none';
+}
+
+function updateCamera(dt) {
+  if (isFirstPerson.value) {
+    camera.position.set(player.position.x, player.position.y + 1.6, player.position.z);
+    const euler = new THREE.Euler(camPitch, camYaw, 0, 'YXZ');
+    camera.quaternion.setFromEuler(euler);
+  } else {
+    const sp = Math.hypot(velocity.x, velocity.z);
+    if (sp > 1.0 && camTouchId === null) {
+      camYaw = dampAngle(camYaw, Math.atan2(-velocity.x, -velocity.z), 2, dt);
+    }
+    const offset = new THREE.Vector3(
+      Math.sin(camYaw) * Math.cos(camPitch),
+      Math.sin(camPitch),
+      Math.cos(camYaw) * Math.cos(camPitch)
+    ).multiplyScalar(camDist);
+    const camDesired = new THREE.Vector3().copy(player.position).add(offset);
+    camDesired.y += 1.2;
+    camera.position.lerp(camDesired, 1 - Math.exp(-10 * dt));
+    camera.lookAt(player.position.x, player.position.y + 1.2, player.position.z);
+  }
+}
+
+function updatePlayerAnim(dt) {
+  if (!mixer) return;
+  const s = currentSpeed01; const sp = Math.hypot(velocity.x, velocity.z);
+  
+  if (!onGround && !isSwimming) { fadeToAction('Jump', 0.1); }
+  else if (isSwimming) { fadeToAction('Swim', 0.2); }
+  else if (sp > 0.5) {
+    if (sp > SPEED * 0.7) fadeToAction('Run', 0.2);
+    else fadeToAction('Walk', 0.2);
+  } else { fadeToAction('Idle', 0.2); }
+
+  mixer.update(dt);
+  if (playerModel) {
+    const targetTilt = s * 0.05;
+    playerModel.rotation.x += (targetTilt - playerModel.rotation.x) * (1 - Math.exp(-8 * dt));
+  }
+}
+
+/* ==================== ДЕЙСТВИЯ / UI / ЦИКЛ ==================== */
+function updateOxygenUI() {
+  const oxyEl = document.getElementById('oxygen');
+  oxyEl.style.display = isUnderwater ? 'block' : 'none';
+  if (!isUnderwater) return;
+  document.getElementById('oxyFill').style.width = (oxygen / OXYGEN_MAX) * 100 + '%';
+}
+
+const invModal = document.getElementById('invModal');
+const craftModal = document.getElementById('craftModal');
+const buildModal = document.getElementById('buildModal');
+let modalOpen = false;
+function openModal(m) { closeAllModals(); m.classList.add('open'); modalOpen = true; if (m === invModal) { renderInventoryModal(); renderHotbarModal(); } }
+function closeAllModals() { invModal.classList.remove('open'); craftModal.classList.remove('open'); buildModal.classList.remove('open'); modalOpen = false; }
+document.getElementById('openInv').addEventListener('click', () => openModal(invModal));
+document.getElementById('openCraft').addEventListener('click', () => { renderCraft(); openModal(craftModal); });
+document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeAllModals));
+document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => { if (e.target === m) closeAllModals(); }));
+
+document.getElementById('fsBtn').addEventListener('click', async () => {
+  try {
+    if (!document.fullscreenElement) {
+      await document.documentElement.requestFullscreen();
+      if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape');
+    } else await document.exitFullscreen();
+  } catch(e) {}
+});
+
+function findNearestAction() {
+  if (modalOpen || placingPiece) { setAction(null); return; }
+  const px = player.position.x, pz = player.position.z;
+  let best = null, bestDist = Infinity;
+
+  for (const r of rockData) { if (!r.alive) continue; const d = Math.hypot(px-r.x, pz-r.z); if (d < 2.0 && d < bestDist) { bestDist = d; best = { kind: 'rock', target: r, label: 'Подобрать камень' }; } }
+  for (const f of flintData) { if (!f.alive) continue; const d = Math.hypot(px-f.x, pz-f.z); if (d < 2.0 && d < bestDist) { bestDist = d; best = { kind: 'flint', target: f, label: 'Подобрать кремень' }; } }
+  for (const b of branchData) { if (!b.alive) continue; const d = Math.hypot(px-b.x, pz-b.z); if (d < 2.0 && d < bestDist) { bestDist = d; best = { kind: 'branch', target: b, label: 'Подобрать ветку' }; } }
+  
+  const hasAxe = hasTool('stoneAxe') || hasTool('flintAxe');
+  for (const tt of treeData) {
+    if (!tt.alive) continue;
+    const d = Math.hypot(px-tt.x, pz-tt.z);
+    if (d < 2.4 && d < bestDist) {
+      bestDist = d;
+      const canCut = hasAxe || tt.type === 'small';
+      let label = tt.type === 'small' ? (hasAxe ? 'Рубить' : 'Срубить руками') : (hasAxe ? 'Рубить дерево' : 'Нужен топор');
+      best = { kind: canCut ? 'tree' : 'tree-noaxe', target: tt, label };
+    }
+  }
+  setAction(best);
+}
+
+function hideInstance(inst, idx) {
+  dummy.position.set(0, -9999, 0); dummy.rotation.set(0, 0, 0); dummy.scale.set(0, 0, 0); dummy.updateMatrix();
+  inst.setMatrixAt(idx, dummy.matrix); inst.instanceMatrix.needsUpdate = true;
+}
+
+function doAction() {
+  if (!currentAction) return;
+  const { kind, target } = currentAction;
+  if (kind === 'rock') { target.alive = false; hideInstance(rockInst, target.idx); addItem('stone', 2 + Math.floor(Math.random()*2)); toast('+ камень'); }
+  else if (kind === 'flint') { target.alive = false; hideInstance(flintInst, target.idx); addItem('flint', 2 + Math.floor(Math.random()*2)); toast('+ кремень'); }
+  else if (kind === 'branch') { target.alive = false; hideInstance(branchInst, target.idx); addItem('wood', 1 + Math.floor(Math.random()*2)); toast('+ дерево'); }
+  else if (kind === 'tree' || kind === 'tree-noaxe') {
+    if (kind === 'tree-noaxe') { toast('Сначала топор'); return; }
+    const hasFlint = hasTool('flintAxe');
+    const dmg = target.type === 'small' ? 2 : (hasFlint ? 6 : 4);
+    target.hp -= dmg;
+    if (target.hp <= 0) {
+      target.alive = false; for (const inst of target.insts) hideInstance(inst, target.idx);
+      let wood, resin = 0;
+      if (target.type === 'small') { wood = 2; resin = 1; } else { wood = 4; if (Math.random() < 0.6) resin = 1; }
+      addItem('wood', wood); if (resin > 0) addItem('resin', resin);
+      toast(`+${wood}🪵 ${resin > 0 ? '+'+resin+'🟠' : ''}`);
+    } else { toast('Удар!'); }
+  }
+  setAction(null);
+}
+
+const clock = new THREE.Clock();
+let elapsed = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05); elapsed += dt;
+
+  updatePlayer(dt);
+  updatePlayerAnim(dt);
+  updateCamera(dt);
+  findNearestAction();
+  updateOxygenUI();
+  updateBuildBtn();
+
+  if (placingPiece) updateGhostPosition();
+  waterNormalMap.offset.x = elapsed * 0.02;
+  waterNormalMap.offset.y = elapsed * 0.03;
+  if (waterMat.userData.shader) {
+    waterMat.userData.shader.uniforms.uTime.value = elapsed;
+    waterMat.userData.shader.uniforms.uWaveHeight.value = 0.5;
+  }
+  for (const sh of grassShaders) {
+    sh.uniforms.uPlayerPos.value.copy(player.position);
+    sh.uniforms.uTime.value = elapsed;
+  }
+  sky.position.copy(player.position);
+  
+  renderer.render(scene, camera);
+}
+
+async function initPlayer() {
+  const spawn = findSpawn();
+  player.position.set(spawn.x, getTerrainYAt(spawn.x, spawn.z) + 1, spawn.z);
+  await loadPlayerModel();
+  renderOutsideHotbar();
+}
+
+initPlayer().then(() => {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('startScreen').style.display = 'flex';
+  
+  document.getElementById('startBtn').addEventListener('click', async () => {
+    try { if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen(); } catch(e) {}
+    try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch(e) {}
+    
+    document.getElementById('startScreen').style.display = 'none';
+    document.getElementById('clockBadge').style.display = 'flex';
+    document.getElementById('menuBtns').style.display = 'flex';
+    document.getElementById('topright').style.display = 'flex';
+    document.getElementById('hotbar').style.display = 'flex';
+    document.getElementById('jumpBtn').style.display = 'flex';
+    
+    animate();
+  });
+});
+</script>
+</body>
+</html>
