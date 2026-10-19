@@ -3,7 +3,18 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-<title>Valheim-like</title>
+<title>Valheim-like (Offline)</title>
+
+<!-- Подключаем Three.js локально или через CDN (если файла нет) -->
+<script src="./three.min.js"></script>
+<script>
+  // Если локальный файл не найден, грузим с CDN (страховка)
+  if (typeof THREE === 'undefined') {
+    document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r147/three.min.js"><\/script>');
+  }
+</script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+
 <style>
   :root {
     --wood-dark: #2e1f12; --wood-mid: #4a3520; --wood-light: #6a4a2a;
@@ -297,7 +308,7 @@
 
 <div id="loading">
   <div class="spinner"></div>
-  <div>Генерация мира и загрузка модели...</div>
+  <div>Генерация мира и загрузка...</div>
 </div>
 
 <div id="startScreen">
@@ -364,27 +375,11 @@
 <div id="toast"></div>
 <div id="stick" style="display:none;"><div id="knob"></div></div>
 
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-  }
-}
-</script>
-
-<script type="module">
-import * as THREE from 'three';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-
+<script>
 /* ==================== НАСТРОЙКИ ==================== */
 const WORLD_SIZE     = 2520;
-const TERRAIN_SEG    = 400;
-const WATER_SEG      = 150;
+const TERRAIN_SEG    = 300;
+const WATER_SEG      = 100;
 const PINE_COUNT     = 1000;
 const OAK_COUNT      = 600;
 const BIRCH_COUNT    = 450;
@@ -394,7 +389,7 @@ const FLINT_COUNT    = 500;
 const BRANCH_COUNT   = 900;
 const SEAWEED_COUNT  = 400;
 const PEBBLE_COUNT   = 400;
-const GRASS_PER_VARIANT = 12000;
+const GRASS_PER_VARIANT = 10000;
 const RAIN_COUNT     = 600;
 const PLAYER_RADIUS  = 0.35;
 const PLAYER_HEIGHT  = 1.8;
@@ -418,7 +413,7 @@ const HOTBAR_SLOTS   = 9;
 
 /* ==================== РЕНДЕР ==================== */
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 3));
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); // Снижено до 2 для оптимизации
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -441,7 +436,7 @@ scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff2d0, 2.2);
 sun.position.set(40, 60, 30);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(1024, 1024); // Оптимизация теней
 const sc = sun.shadow.camera;
 sc.left = -60; sc.right = 60; sc.top = 60; sc.bottom = -60; sc.near = 1; sc.far = 220;
 sun.shadow.bias = -0.0008;
@@ -487,12 +482,8 @@ function valueNoiseSeamless(x, y, period) {
 function terrainHeight(x, z) {
   const base = fbm(x*0.001, z*0.001); 
   let h = (base - 0.45) * 60; 
-  
   const mountains = fbm(x*0.002 + 100, z*0.002 + 100);
-  if (mountains > 0.55) {
-    h += Math.pow(mountains - 0.55, 2) * 400; 
-  }
-  
+  if (mountains > 0.55) h += Math.pow(mountains - 0.55, 2) * 400; 
   h += (fbm(x*0.01, z*0.01) - 0.5) * 6;
   
   const r1c = Math.sin(x*0.008)*60+Math.cos(x*0.002)*40;
@@ -500,11 +491,7 @@ function terrainHeight(x, z) {
   const r2c = Math.sin(z*0.008)*60+Math.cos(z*0.002)*40;
   const r2 = Math.max(0, 1-Math.abs(x-r2c)/20);
   const rm = Math.max(r1,r2);
-  if (rm > 0) {
-    const k = rm*rm;
-    h = h*(1-k*0.95) - k*30.0;
-  }
-  
+  if (rm > 0) { const k = rm*rm; h = h*(1-k*0.95) - k*30.0; }
   return h;
 }
 
@@ -532,7 +519,7 @@ function getTerrainYAt(x, z) {
 
 /* ==================== ТЕКСТУРЫ ==================== */
 function makeNoiseTexture() {
-  const SIZE = 1024;
+  const SIZE = 512;
   const c = document.createElement('canvas');
   c.width = SIZE; c.height = SIZE;
   const ctx = c.getContext('2d');
@@ -557,7 +544,7 @@ function makeNoiseTexture() {
 }
 
 function makeWaterNormalMap() {
-  const SIZE = 512;
+  const SIZE = 256;
   const c = document.createElement('canvas');
   c.width = SIZE; c.height = SIZE;
   const ctx = c.getContext('2d');
@@ -657,7 +644,6 @@ waterMat.onBeforeCompile = (shader) => {
     diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 0.95, 1.0), foam * 0.8);
     `
   );
-
   waterMat.userData.shader = shader;
 };
 
@@ -680,9 +666,9 @@ const treeData = [];
 const pineTrunkMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 1, flatShading: true });
 const pineLeaf1Mat = new THREE.MeshStandardMaterial({ color: 0x2d6b3a, roughness: 0.9, flatShading: true });
 const pineLeaf2Mat = new THREE.MeshStandardMaterial({ color: 0x3f8a4a, roughness: 0.9, flatShading: true });
-const pineTrunkGeo = new THREE.CylinderGeometry(0.18, 0.28, 1.6, 12);
-const pineLeaf1Geo = new THREE.ConeGeometry(1.3, 2.2, 12);
-const pineLeaf2Geo = new THREE.ConeGeometry(0.95, 1.7, 12);
+const pineTrunkGeo = new THREE.CylinderGeometry(0.18, 0.28, 1.6, 8);
+const pineLeaf1Geo = new THREE.ConeGeometry(1.3, 2.2, 8);
+const pineLeaf2Geo = new THREE.ConeGeometry(0.95, 1.7, 8);
 const pineTrunkInst = new THREE.InstancedMesh(pineTrunkGeo, pineTrunkMat, PINE_COUNT);
 pineTrunkInst.castShadow = true; pineTrunkInst.receiveShadow = true;
 const pineLeaf1Inst = new THREE.InstancedMesh(pineLeaf1Geo, pineLeaf1Mat, PINE_COUNT);
@@ -692,8 +678,8 @@ pineLeaf2Inst.castShadow = true;
 
 const oakTrunkMat = new THREE.MeshStandardMaterial({ color: 0x5a3a1e, roughness: 1, flatShading: true });
 const oakCanopyMat = new THREE.MeshStandardMaterial({ color: 0x4a7a2a, roughness: 0.9, flatShading: true });
-const oakTrunkGeo = new THREE.CylinderGeometry(0.3, 0.42, 2.2, 12);
-const oakCanopyGeo = new THREE.IcosahedronGeometry(1.6, 3);
+const oakTrunkGeo = new THREE.CylinderGeometry(0.3, 0.42, 2.2, 8);
+const oakCanopyGeo = new THREE.IcosahedronGeometry(1.6, 2);
 const oakTrunkInst = new THREE.InstancedMesh(oakTrunkGeo, oakTrunkMat, OAK_COUNT);
 oakTrunkInst.castShadow = true; oakTrunkInst.receiveShadow = true;
 const oakCanopyInst = new THREE.InstancedMesh(oakCanopyGeo, oakCanopyMat, OAK_COUNT);
@@ -701,8 +687,8 @@ oakCanopyInst.castShadow = true;
 
 const birchTrunkMat = new THREE.MeshStandardMaterial({ color: 0xe8e0d0, roughness: 0.7, flatShading: true });
 const birchCanopyMat = new THREE.MeshStandardMaterial({ color: 0x8ac05a, roughness: 0.9, flatShading: true });
-const birchTrunkGeo = new THREE.CylinderGeometry(0.12, 0.16, 2.4, 12);
-const birchCanopyGeo = new THREE.IcosahedronGeometry(1.1, 3);
+const birchTrunkGeo = new THREE.CylinderGeometry(0.12, 0.16, 2.4, 8);
+const birchCanopyGeo = new THREE.IcosahedronGeometry(1.1, 2);
 const birchTrunkInst = new THREE.InstancedMesh(birchTrunkGeo, birchTrunkMat, BIRCH_COUNT);
 birchTrunkInst.castShadow = true; birchTrunkInst.receiveShadow = true;
 const birchCanopyInst = new THREE.InstancedMesh(birchCanopyGeo, birchCanopyMat, BIRCH_COUNT);
@@ -710,8 +696,8 @@ birchCanopyInst.castShadow = true;
 
 const smallTreeTrunkMat = new THREE.MeshStandardMaterial({ color: 0x7a5a3a, roughness: 1, flatShading: true });
 const smallTreeLeafMat = new THREE.MeshStandardMaterial({ color: 0x4a9a5a, roughness: 0.9, flatShading: true });
-const smallTreeTrunkGeo = new THREE.CylinderGeometry(0.06, 0.1, 0.5, 8);
-const smallTreeLeafGeo = new THREE.ConeGeometry(0.45, 0.9, 8);
+const smallTreeTrunkGeo = new THREE.CylinderGeometry(0.06, 0.1, 0.5, 6);
+const smallTreeLeafGeo = new THREE.ConeGeometry(0.45, 0.9, 6);
 const smallTreeTrunkInst = new THREE.InstancedMesh(smallTreeTrunkGeo, smallTreeTrunkMat, SMALL_TREE_COUNT);
 smallTreeTrunkInst.castShadow = true;
 const smallTreeLeafInst = new THREE.InstancedMesh(smallTreeLeafGeo, smallTreeLeafMat, SMALL_TREE_COUNT);
@@ -801,7 +787,7 @@ scene.add(birchTrunkInst, birchCanopyInst);
 scene.add(smallTreeTrunkInst, smallTreeLeafInst);
 
 /* ==================== КАМНИ / КРЕМЕНЬ / ВЕТКИ ==================== */
-const rockGeo = new THREE.IcosahedronGeometry(0.32, 2);
+const rockGeo = new THREE.IcosahedronGeometry(0.32, 1);
 const rockMat = new THREE.MeshStandardMaterial({ color: 0x8a8a80, roughness: 0.95, flatShading: true });
 const rockInst = new THREE.InstancedMesh(rockGeo, rockMat, ROCK_COUNT);
 rockInst.castShadow = true; rockInst.receiveShadow = true;
@@ -817,7 +803,7 @@ for (let i = 0; i < ROCK_COUNT; i++) {
 rockInst.instanceMatrix.needsUpdate = true;
 scene.add(rockInst);
 
-const flintGeo = new THREE.IcosahedronGeometry(0.22, 2);
+const flintGeo = new THREE.IcosahedronGeometry(0.22, 1);
 const flintMat = new THREE.MeshStandardMaterial({ color: 0xe8e8dc, roughness: 0.4, metalness: 0.15, flatShading: true, emissive: 0x333322, emissiveIntensity: 0.15 });
 const flintInst = new THREE.InstancedMesh(flintGeo, flintMat, FLINT_COUNT);
 flintInst.castShadow = true;
@@ -834,7 +820,7 @@ for (let i = 0; i < FLINT_COUNT; i++) {
 flintInst.instanceMatrix.needsUpdate = true;
 scene.add(flintInst);
 
-const branchGeo = new THREE.CylinderGeometry(0.05, 0.07, 0.7, 8);
+const branchGeo = new THREE.CylinderGeometry(0.05, 0.07, 0.7, 6);
 const branchMat = new THREE.MeshStandardMaterial({ color: 0x5a3a1e, roughness: 1, flatShading: true });
 const branchInst = new THREE.InstancedMesh(branchGeo, branchMat, BRANCH_COUNT);
 branchInst.castShadow = true;
@@ -851,40 +837,11 @@ for (let i = 0; i < BRANCH_COUNT; i++) {
 branchInst.instanceMatrix.needsUpdate = true;
 scene.add(branchInst);
 
-/* ==================== ВОДОРОСЛИ / КАМЕШКИ ==================== */
-const seaweedGeo = new THREE.ConeGeometry(0.12, 1.2, 6);
-const seaweedMat = new THREE.MeshStandardMaterial({ color: 0x2a7a4a, roughness: 0.9, flatShading: true });
-const seaweedInst = new THREE.InstancedMesh(seaweedGeo, seaweedMat, SEAWEED_COUNT);
-for (let i = 0; i < SEAWEED_COUNT; i++) {
-  let x=0,z=0,h=0,ok=false,a=0;
-  while(!ok && a<200) { a++; x=(Math.random()-0.5)*(WORLD_SIZE-40); z=(Math.random()-0.5)*(WORLD_SIZE-40); h=getTerrainYAt(x,z); if(h<WATER_LEVEL-0.5 && h>WATER_LEVEL-8) ok=true; }
-  const s = 0.7+Math.random()*0.7;
-  dummy.position.set(x, h+0.6*s, z); dummy.rotation.set(0, Math.random()*Math.PI*2, 0); dummy.scale.set(s, s, s); dummy.updateMatrix();
-  seaweedInst.setMatrixAt(i, dummy.matrix);
-}
-seaweedInst.instanceMatrix.needsUpdate = true;
-scene.add(seaweedInst);
-
-const pebbleGeo = new THREE.IcosahedronGeometry(0.16, 2);
-const pebbleMat = new THREE.MeshStandardMaterial({ color: 0xc0a880, roughness: 0.9, flatShading: true });
-const pebbleInst = new THREE.InstancedMesh(pebbleGeo, pebbleMat, PEBBLE_COUNT);
-pebbleInst.receiveShadow = true;
-for (let i = 0; i < PEBBLE_COUNT; i++) {
-  let x=0,z=0,h=0,ok=false,a=0;
-  while(!ok && a<150) { a++; x=(Math.random()-0.5)*(WORLD_SIZE-40); z=(Math.random()-0.5)*(WORLD_SIZE-40); h=getTerrainYAt(x,z); if(h<WATER_LEVEL-0.2 && h>WATER_LEVEL-7) ok=true; }
-  if (!ok) continue;
-  const s = 0.5+Math.random()*1.2;
-  dummy.position.set(x, h+0.05*s, z); dummy.rotation.set(Math.random(), Math.random(), Math.random()); dummy.scale.set(s, s*0.6, s); dummy.updateMatrix();
-  pebbleInst.setMatrixAt(i, dummy.matrix);
-}
-pebbleInst.instanceMatrix.needsUpdate = true;
-scene.add(pebbleInst);
-
 /* ==================== ТРАВА ==================== */
 function makeGrassCluster() {
   const geos = [];
   for (let i = 0; i < 4; i++) {
-    const g = new THREE.ConeGeometry(0.035 + Math.random()*0.025, 0.45 + Math.random()*0.35, 4);
+    const g = new THREE.ConeGeometry(0.035 + Math.random()*0.025, 0.45 + Math.random()*0.35, 3);
     g.translate((Math.random()-0.5)*0.28, 0.28, (Math.random()-0.5)*0.28);
     g.rotateY(Math.random() * Math.PI * 2);
     geos.push(g.toNonIndexed());
@@ -967,34 +924,7 @@ placeGrass(grassB, GRASS_PER_VARIANT);
 placeGrass(grassC, GRASS_PER_VARIANT);
 scene.add(grassA, grassB, grassC);
 
-/* ==================== ДОЖДЬ ==================== */
-const rainGeo = new THREE.BoxGeometry(0.02, 0.4, 0.02);
-const rainMat = new THREE.MeshBasicMaterial({ color: 0x88aacc, transparent: true, opacity: 0.55 });
-const rainInst = new THREE.InstancedMesh(rainGeo, rainMat, RAIN_COUNT);
-rainInst.frustumCulled = false;
-rainInst.visible = false;
-scene.add(rainInst);
-const rainData = [];
-for (let i = 0; i < RAIN_COUNT; i++) {
-  rainData.push({ ox: (Math.random()-0.5)*60, oy: Math.random()*40, oz: (Math.random()-0.5)*60, sp: 20+Math.random()*10 });
-}
-function updateRain(dt) {
-  if (weather !== 'rain' || isUnderwater) { rainInst.visible = false; return; }
-  rainInst.visible = true;
-  for (let i = 0; i < RAIN_COUNT; i++) {
-    const r = rainData[i];
-    r.oy -= r.sp * dt;
-    if (r.oy < -5) { r.oy = 25+Math.random()*15; r.ox = (Math.random()-0.5)*60; r.oz = (Math.random()-0.5)*60; }
-    dummy.position.set(player.position.x + r.ox, player.position.y + r.oy, player.position.z + r.oz);
-    dummy.rotation.set(0, 0, 0);
-    dummy.scale.set(1, 1, 1);
-    dummy.updateMatrix();
-    rainInst.setMatrixAt(i, dummy.matrix);
-  }
-  rainInst.instanceMatrix.needsUpdate = true;
-}
-
-/* ==================== ИНИЦИАЛИЗАЦИЯ ИГРОКА ==================== */
+/* ==================== ИГРОК ==================== */
 const player = new THREE.Group();
 scene.add(player);
 
@@ -1005,13 +935,11 @@ let activeAction = null;
 
 const velocity = new THREE.Vector3();
 let vy = 0, onGround = true;
-let walkPhase = 0, idlePhase = 0;
 let currentSpeed01 = 0;
 let oxygen = OXYGEN_MAX;
 let isSwimming = false, isUnderwater = false;
-let bodyTiltTarget = 0, airborneBlend = 0, runBlend = 0, holdBlend = 0;
 
-// Умный поиск спавна на большой земле
+// Умный спавн
 function findSpawn() {
   for (let attempt = 0; attempt < 300; attempt++) {
     const angle = Math.random() * Math.PI * 2;
@@ -1019,18 +947,12 @@ function findSpawn() {
     const x = Math.cos(angle) * radius;
     const z = Math.sin(angle) * radius;
     const h = getTerrainYAt(x, z);
-    
-    if (h < WATER_LEVEL + 5) continue; // Должно быть высоко над водой
-    
-    // Проверяем радиус 80 единиц на наличие воды (чтобы исключить острова)
+    if (h < WATER_LEVEL + 5) continue;
     let isMainland = true;
     for (let i = 0; i < 8; i++) {
       const a = (i / 8) * Math.PI * 2;
-      const checkX = x + Math.cos(a) * 80;
-      const checkZ = z + Math.sin(a) * 80;
-      if (getTerrainYAt(checkX, checkZ) < WATER_LEVEL + 1) {
-        isMainland = false;
-        break;
+      if (getTerrainYAt(x + Math.cos(a) * 80, z + Math.sin(a) * 80) < WATER_LEVEL + 1) {
+        isMainland = false; break;
       }
     }
     if (isMainland) return { x, z };
@@ -1038,37 +960,35 @@ function findSpawn() {
   return { x: 0, z: 0 };
 }
 
-// Загрузка внешней 3D-модели
+// Загрузка модели (локально или через CDN)
 function loadPlayerModel() {
   return new Promise((resolve) => {
-    const loader = new GLTFLoader();
-    // Используем официальную модель солдата из Three.js
-    loader.load('https://threejs.org/examples/models/gltf/Soldier.glb', (gltf) => {
+    const loader = new THREE.GLTFLoader();
+    // Пытаемся загрузить локально. Если файла нет, сработает fallback
+    loader.load('./Soldier.glb', (gltf) => {
       playerModel = gltf.scene;
       playerModel.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
-      // Масштабируем под наш мир
       playerModel.scale.set(1.5, 1.5, 1.5);
       player.add(playerModel);
 
       mixer = new THREE.AnimationMixer(playerModel);
-      gltf.animations.forEach(clip => {
-        actions[clip.name] = mixer.clipAction(clip);
-      });
-
-      // Запуск Idle по умолчанию
-      if (actions['Idle']) {
-        activeAction = actions['Idle'];
-        activeAction.play();
-      }
+      gltf.animations.forEach(clip => { actions[clip.name] = mixer.clipAction(clip); });
+      if (actions['Idle']) { activeAction = actions['Idle']; activeAction.play(); }
       resolve();
-    }, undefined, (err) => {
-      console.error('Ошибка загрузки модели:', err);
-      // Fallback, если модель не загрузилась
-      const geom = new THREE.BoxGeometry(0.6, 1.8, 0.6);
-      const mat = new THREE.MeshStandardMaterial({ color: 0x8F6E43 });
-      playerModel = new THREE.Mesh(geom, mat);
-      playerModel.position.y = 0.9;
-      playerModel.castShadow = true;
+    }, undefined, () => {
+      // Fallback: процедурный персонаж, если модель не скачана
+      console.warn("Модель не найдена, используем процедурную.");
+      const g = new THREE.Group();
+      const skinMat = new THREE.MeshStandardMaterial({ color: 0x8F6E43 });
+      const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 0.8, 4, 8), skinMat);
+      torso.position.y = 1.1; torso.castShadow = true; g.add(torso);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), skinMat);
+      head.position.y = 1.8; head.castShadow = true; g.add(head);
+      const legL = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.6, 4, 8), skinMat);
+      legL.position.set(-0.15, 0.4, 0); g.add(legL);
+      const legR = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.6, 4, 8), skinMat);
+      legR.position.set(0.15, 0.4, 0); g.add(legR);
+      playerModel = g;
       player.add(playerModel);
       resolve();
     });
@@ -1076,95 +996,15 @@ function loadPlayerModel() {
 }
 
 function fadeToAction(name, duration) {
-  if (!actions[name]) return;
+  if (!mixer || !actions[name]) return;
   const nextAction = actions[name];
   if (nextAction === activeAction) return;
-  
   if (activeAction) activeAction.fadeOut(duration);
   nextAction.reset().setEffectiveWeight(1).fadeIn(duration).play();
   activeAction = nextAction;
 }
 
-/* ==================== ПРЕДМЕТЫ В РУКЕ ==================== */
-const woodMat = new THREE.MeshStandardMaterial({ color: 0x5a3a1e, roughness: 0.95, flatShading: true });
-const stoneMat = new THREE.MeshStandardMaterial({ color: 0x8a8a80, roughness: 0.9, flatShading: true });
-const flintMat2 = new THREE.MeshStandardMaterial({ color: 0xc8c8b8, roughness: 0.5, flatShading: true });
-const resinMat2 = new THREE.MeshStandardMaterial({ color: 0xd9922a, roughness: 0.4, metalness: 0.2, flatShading: true, emissive: 0x552200, emissiveIntensity: 0.4 });
-const HELD_ITEMS = {};
-let handBone = null;
-
-function makeHeldItem() {
-  const g = new THREE.Group();
-  g.position.set(0, 0, 0.1);
-  g.rotation.x = -Math.PI / 2;
-  g.visible = false;
-  // Привязываем к игроку, смещая вправо и вперед
-  player.add(g); 
-  return g;
-}
-
-// Создание предметов
-{
-  const g = makeHeldItem();
-  const h = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 0.6, 12), woodMat); h.position.y = 0.15; h.castShadow = true; g.add(h);
-  const hd = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.14, 0.08), stoneMat); hd.position.set(0.1, 0.4, 0); hd.castShadow = true; g.add(hd);
-  HELD_ITEMS.stoneAxe = g;
-}
-{
-  const g = makeHeldItem();
-  const h = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 0.65, 12), woodMat); h.position.y = 0.17; h.castShadow = true; g.add(h);
-  const hd = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.16, 0.06), flintMat2); hd.position.set(0.12, 0.44, 0); hd.castShadow = true; g.add(hd);
-  HELD_ITEMS.flintAxe = g;
-}
-{
-  const g = makeHeldItem();
-  const h = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 0.55, 12), woodMat); h.position.y = 0.15; h.castShadow = true; g.add(h);
-  const hd = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 0.18), stoneMat); hd.position.y = 0.44; hd.castShadow = true; g.add(hd);
-  HELD_ITEMS.hammer = g;
-}
-let torchLight, torchFlame, torchFlame2;
-{
-  const g = makeHeldItem();
-  const st = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 0.55, 12), woodMat); st.position.y = 0.15; st.castShadow = true; g.add(st);
-  torchFlame = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.3, 12), new THREE.MeshBasicMaterial({ color: 0xffaa33 })); torchFlame.position.y = 0.55; g.add(torchFlame);
-  torchFlame2 = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.18, 12), new THREE.MeshBasicMaterial({ color: 0xffd966 })); torchFlame2.position.y = 0.58; g.add(torchFlame2);
-  torchLight = new THREE.PointLight(0xff9a33, 0, 14, 1.6); torchLight.position.y = 0.55; g.add(torchLight);
-  HELD_ITEMS.torch = g;
-}
-{
-  const g = makeHeldItem();
-  const log = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.35, 12), woodMat); log.rotation.z = Math.PI/2; log.position.y = 0.05; g.add(log);
-  HELD_ITEMS.wood = g;
-}
-{
-  const g = makeHeldItem();
-  const r = new THREE.Mesh(new THREE.IcosahedronGeometry(0.1, 2), stoneMat); r.position.y = 0.05; g.add(r);
-  HELD_ITEMS.stone = g;
-}
-{
-  const g = makeHeldItem();
-  const f = new THREE.Mesh(new THREE.IcosahedronGeometry(0.08, 2), flintMat2); f.scale.set(1, 0.5, 1.4); f.position.y = 0.05; g.add(f);
-  HELD_ITEMS.flint = g;
-}
-{
-  const g = makeHeldItem();
-  const r = new THREE.Mesh(new THREE.SphereGeometry(0.07, 16, 16), resinMat2); r.position.y = 0.05; g.add(r);
-  HELD_ITEMS.resin = g;
-}
-
-function setHandItem(id) {
-  for (const key in HELD_ITEMS) {
-    HELD_ITEMS[key].visible = (key === id);
-    if (key === id) {
-      // Позиция в руке относительно игрока (если нет кости)
-      HELD_ITEMS[key].position.set(0.4, 1.2, 0.4);
-      HELD_ITEMS[key].rotation.set(0, 0, 0);
-    }
-  }
-  if (torchLight) torchLight.intensity = (id === 'torch') ? 2.5 : 0;
-}
-
-/* ==================== ИНВЕНТАРЬ ==================== */
+/* ==================== UI / ИНВЕНТАРЬ ==================== */
 const inventory = new Array(INV_SLOTS).fill(null);
 const hotbar = new Array(HOTBAR_SLOTS).fill(null);
 let selectedSlot = -1;
@@ -1192,24 +1032,17 @@ function hasTool(id) {
   return false;
 }
 function addItem(id, count = 1) {
-  const def = ITEM_DEFS[id];
-  if (!def) return;
+  const def = ITEM_DEFS[id]; if (!def) return;
   if (def.isResource) {
-    for (const arr of [inventory, hotbar]) {
-      for (let i = 0; i < arr.length; i++) {
-        if (arr[i] && arr[i].id === id) { arr[i].count += count; refreshUI(); return; }
-      }
+    for (const arr of [inventory, hotbar]) for (let i = 0; i < arr.length; i++) {
+      if (arr[i] && arr[i].id === id) { arr[i].count += count; refreshUI(); return; }
     }
-    for (const arr of [inventory, hotbar]) {
-      for (let i = 0; i < arr.length; i++) {
-        if (!arr[i]) { arr[i] = { id, count }; refreshUI(); return; }
-      }
+    for (const arr of [inventory, hotbar]) for (let i = 0; i < arr.length; i++) {
+      if (!arr[i]) { arr[i] = { id, count }; refreshUI(); return; }
     }
   } else {
-    for (const arr of [hotbar, inventory]) {
-      for (let i = 0; i < arr.length; i++) {
-        if (!arr[i]) { arr[i] = { id }; refreshUI(); return; }
-      }
+    for (const arr of [hotbar, inventory]) for (let i = 0; i < arr.length; i++) {
+      if (!arr[i]) { arr[i] = { id }; refreshUI(); return; }
     }
   }
 }
@@ -1219,19 +1052,13 @@ function removeItem(id, count) {
       if (arr[i] && arr[i].id === id) {
         if (ITEM_DEFS[id].isResource) {
           const take = Math.min(count, arr[i].count || 1);
-          arr[i].count -= take;
-          if (arr[i].count <= 0) arr[i] = null;
-          count -= take;
-        } else {
-          arr[i] = null;
-          count--;
-        }
+          arr[i].count -= take; if (arr[i].count <= 0) arr[i] = null; count -= take;
+        } else { arr[i] = null; count--; }
       }
     }
   }
 }
 
-/* ==================== UI: ХОТБАР / ИНВЕНТАРЬ ==================== */
 const hotbarEl = document.getElementById('hotbar');
 function renderOutsideHotbar() {
   hotbarEl.innerHTML = '';
@@ -1240,11 +1067,7 @@ function renderOutsideHotbar() {
     slot.className = 'hotbar-slot' + (i === selectedSlot ? ' selected' : '');
     let inner = `<span class="num">${i+1}</span>`;
     const item = hotbar[i];
-    if (item) {
-      const def = ITEM_DEFS[item.id];
-      inner += def.icon;
-      if (def.isResource) inner += `<span class="cnt">${item.count || 1}</span>`;
-    }
+    if (item) { inner += ITEM_DEFS[item.id].icon; if (ITEM_DEFS[item.id].isResource) inner += `<span class="cnt">${item.count || 1}</span>`; }
     slot.innerHTML = inner;
     slot.addEventListener('click', () => selectSlot(i));
     hotbarEl.appendChild(slot);
@@ -1261,119 +1084,69 @@ function attachDrag(slotEl, fromType, index) {
     const arr = fromType === 'inv' ? inventory : hotbar;
     if (!arr[index]) return;
     dragState = { from: fromType, index, startX: e.clientX, startY: e.clientY, moved: false };
-    const ghost = document.createElement('div');
-    ghost.className = 'drag-ghost';
+    const ghost = document.createElement('div'); ghost.className = 'drag-ghost';
     ghost.innerHTML = ITEM_DEFS[arr[index].id].icon;
     ghost.style.cssText = `position:fixed;left:${e.clientX}px;top:${e.clientY}px;font-size:36px;transform:translate(-50%,-50%);z-index:10000;`;
-    document.body.appendChild(ghost);
-    dragState.ghostEl = ghost;
-    window.addEventListener('pointermove', onDragMove);
-    window.addEventListener('pointerup', onDragUp);
+    document.body.appendChild(ghost); dragState.ghostEl = ghost;
+    window.addEventListener('pointermove', onDragMove); window.addEventListener('pointerup', onDragUp);
   });
 }
 function onDragMove(e) {
   if (!dragState) return;
   if (Math.hypot(e.clientX - dragState.startX, e.clientY - dragState.startY) > 5) dragState.moved = true;
-  dragState.ghostEl.style.left = e.clientX + 'px';
-  dragState.ghostEl.style.top = e.clientY + 'px';
+  dragState.ghostEl.style.left = e.clientX + 'px'; dragState.ghostEl.style.top = e.clientY + 'px';
 }
 function onDragUp(e) {
   if (!dragState) return;
-  window.removeEventListener('pointermove', onDragMove);
-  window.removeEventListener('pointerup', onDragUp);
+  window.removeEventListener('pointermove', onDragMove); window.removeEventListener('pointerup', onDragUp);
   if (dragState.ghostEl) dragState.ghostEl.remove();
-  if (!dragState.moved) {
-    if (dragState.from === 'hotbar') selectSlot(dragState.index);
-    dragState = null;
-    return;
-  }
+  if (!dragState.moved) { if (dragState.from === 'hotbar') selectSlot(dragState.index); dragState = null; return; }
   const el = document.elementFromPoint(e.clientX, e.clientY);
   const target = el ? el.closest('.slot-target') : null;
   if (target) {
-    const toFrom = target.dataset.from;
-    const toIdx = parseInt(target.dataset.index);
-    if (!(toFrom === dragState.from && toIdx === dragState.index)) {
-      moveItem(dragState.from, dragState.index, toFrom, toIdx);
-    }
+    const toFrom = target.dataset.from; const toIdx = parseInt(target.dataset.index);
+    if (!(toFrom === dragState.from && toIdx === dragState.index)) moveItem(dragState.from, dragState.index, toFrom, toIdx);
   }
   dragState = null;
 }
 function moveItem(fromType, fromIdx, toType, toIdx) {
-  const fromArr = fromType === 'inv' ? inventory : hotbar;
-  const toArr = toType === 'inv' ? inventory : hotbar;
-  const item = fromArr[fromIdx];
-  if (!item) return;
+  const fromArr = fromType === 'inv' ? inventory : hotbar; const toArr = toType === 'inv' ? inventory : hotbar;
+  const item = fromArr[fromIdx]; if (!item) return;
   const target = toArr[toIdx];
   if (target && target.id === item.id && ITEM_DEFS[item.id].isResource) {
-    target.count = (target.count || 1) + (item.count || 1);
-    fromArr[fromIdx] = null;
-  } else {
-    fromArr[fromIdx] = target;
-    toArr[toIdx] = item;
-  }
-  refreshUI();
-  updateBuildBtn();
+    target.count = (target.count || 1) + (item.count || 1); fromArr[fromIdx] = null;
+  } else { fromArr[fromIdx] = target; toArr[toIdx] = item; }
+  refreshUI(); updateBuildBtn();
 }
 function renderInventoryModal() {
   invGrid.innerHTML = '';
   for (let i = 0; i < INV_SLOTS; i++) {
-    const slot = document.createElement('div');
-    slot.className = 'inv-slot slot-target';
-    slot.dataset.from = 'inv';
-    slot.dataset.index = i;
+    const slot = document.createElement('div'); slot.className = 'inv-slot slot-target';
+    slot.dataset.from = 'inv'; slot.dataset.index = i;
     const item = inventory[i];
-    if (item) {
-      const def = ITEM_DEFS[item.id];
-      let inner = def.icon;
-      if (def.isResource) inner += `<span class="count">${item.count || 1}</span>`;
-      slot.innerHTML = inner;
-    }
-    attachDrag(slot, 'inv', i);
-    invGrid.appendChild(slot);
+    if (item) { slot.innerHTML = ITEM_DEFS[item.id].icon + (ITEM_DEFS[item.id].isResource ? `<span class="count">${item.count || 1}</span>` : ''); }
+    attachDrag(slot, 'inv', i); invGrid.appendChild(slot);
   }
 }
 function renderHotbarModal() {
   hotbarMGrid.innerHTML = '';
   for (let i = 0; i < HOTBAR_SLOTS; i++) {
-    const slot = document.createElement('div');
-    slot.className = 'hotbar-m-slot slot-target';
-    slot.dataset.from = 'hotbar';
-    slot.dataset.index = i;
-    let inner = `<span class="num">${i+1}</span>`;
-    const item = hotbar[i];
-    if (item) {
-      const def = ITEM_DEFS[item.id];
-      inner += def.icon;
-      if (def.isResource) inner += `<span class="count">${item.count || 1}</span>`;
-    }
-    slot.innerHTML = inner;
-    attachDrag(slot, 'hotbar', i);
-    hotbarMGrid.appendChild(slot);
+    const slot = document.createElement('div'); slot.className = 'hotbar-m-slot slot-target';
+    slot.dataset.from = 'hotbar'; slot.dataset.index = i;
+    let inner = `<span class="num">${i+1}</span>`; const item = hotbar[i];
+    if (item) { inner += ITEM_DEFS[item.id].icon; if (ITEM_DEFS[item.id].isResource) inner += `<span class="count">${item.count || 1}</span>`; }
+    slot.innerHTML = inner; attachDrag(slot, 'hotbar', i); hotbarMGrid.appendChild(slot);
   }
 }
 function refreshUI() {
   renderOutsideHotbar();
   if (modalOpen) { renderInventoryModal(); renderHotbarModal(); }
 }
-
 function selectSlot(i) {
   if (i < 0 || i >= HOTBAR_SLOTS) return;
-  if (!hotbar[i]) {
-    selectedSlot = -1;
-    setHandItem(null);
-    refreshUI(); updateBuildBtn();
-    return;
-  }
-  if (i === selectedSlot) {
-    selectedSlot = -1;
-    setHandItem(null);
-  } else {
-    selectedSlot = i;
-    setHandItem(hotbar[i].id);
-    toast(ITEM_DEFS[hotbar[i].id].name);
-  }
-  refreshUI();
-  updateBuildBtn();
+  if (!hotbar[i]) { selectedSlot = -1; refreshUI(); updateBuildBtn(); return; }
+  if (i === selectedSlot) selectedSlot = -1; else selectedSlot = i;
+  refreshUI(); updateBuildBtn();
 }
 
 /* ==================== КРАФТ / СТРОИТЕЛЬСТВО ==================== */
@@ -1395,26 +1168,21 @@ function doCraft(id) {
   if (id === 'stoneAxe') {
     if (hasTool('stoneAxe')) return toast('Уже есть');
     if (getItemCount('wood')<5 || getItemCount('stone')<4) return toast('Не хватает');
-    removeItem('wood', 5); removeItem('stone', 4); addItem('stoneAxe');
-    toast('Каменный топор!'); beep(520);
+    removeItem('wood', 5); removeItem('stone', 4); addItem('stoneAxe'); toast('Каменный топор!');
   } else if (id === 'flintAxe') {
     if (hasTool('flintAxe')) return toast('Уже есть');
     if (getItemCount('wood')<4 || getItemCount('flint')<6) return toast('Не хватает');
-    removeItem('wood', 4); removeItem('flint', 6); addItem('flintAxe');
-    toast('Кремневый топор!'); beep(680);
+    removeItem('wood', 4); removeItem('flint', 6); addItem('flintAxe'); toast('Кремневый топор!');
   } else if (id === 'hammer') {
     if (hasTool('hammer')) return toast('Уже есть');
     if (getItemCount('wood')<3 || getItemCount('stone')<2) return toast('Не хватает');
-    removeItem('wood', 3); removeItem('stone', 2); addItem('hammer');
-    toast('Молот!'); beep(560);
+    removeItem('wood', 3); removeItem('stone', 2); addItem('hammer'); toast('Молот!');
   } else if (id === 'torch') {
     if (hasTool('torch')) return toast('Уже есть');
     if (getItemCount('wood')<1 || getItemCount('resin')<1) return toast('Нужно 1🪵 1🟠');
-    removeItem('wood', 1); removeItem('resin', 1); addItem('torch');
-    toast('Факел!'); beep(720);
+    removeItem('wood', 1); removeItem('resin', 1); addItem('torch'); toast('Факел!');
   }
-  refreshUI();
-  renderCraft();
+  refreshUI(); renderCraft();
 }
 
 const BUILD_PIECES = {
@@ -1449,12 +1217,8 @@ function startPlacing(id) {
   if (ghostMesh) { scene.remove(ghostMesh); ghostMesh = null; }
   const geo = new THREE.BoxGeometry(piece.size[0], piece.size[1], piece.size[2]);
   const mat = new THREE.MeshBasicMaterial({ color: 0x66ff66, transparent: true, opacity: 0.45, depthWrite: false });
-  ghostMesh = new THREE.Mesh(geo, mat);
-  scene.add(ghostMesh);
-  placingPiece = id;
-  closeAllModals();
-  updateBuildBtn();
-  toast(`Размещение: ${piece.label}`);
+  ghostMesh = new THREE.Mesh(geo, mat); scene.add(ghostMesh); placingPiece = id;
+  closeAllModals(); updateBuildBtn(); toast(`Размещение: ${piece.label}`);
 }
 function cancelPlacing() { if (ghostMesh) { scene.remove(ghostMesh); ghostMesh = null; } placingPiece = null; updateBuildBtn(); }
 function updateGhostPosition() {
@@ -1463,8 +1227,7 @@ function updateGhostPosition() {
   const bx = player.position.x + Math.sin(player.rotation.y) * 2.8;
   const bz = player.position.z + Math.cos(player.rotation.y) * 2.8;
   const by = getTerrainYAt(bx, bz);
-  ghostMesh.position.set(bx, by + p.yOff, bz);
-  ghostMesh.rotation.y = player.rotation.y;
+  ghostMesh.position.set(bx, by + p.yOff, bz); ghostMesh.rotation.y = player.rotation.y;
   ghostMesh.material.color.setHex(by >= WATER_LEVEL - 0.5 ? 0x66ff66 : 0xff4444);
 }
 const buildBtn = document.getElementById('buildBtn');
@@ -1472,15 +1235,11 @@ function updateBuildBtn() {
   if (placingPiece) { buildBtn.style.display = 'block'; buildBtn.innerHTML = '<span class="ui-icon">✓</span> Поставить'; return; }
   const item = selectedSlot >= 0 ? hotbar[selectedSlot] : null;
   if (item && item.id === 'hammer' && !modalOpen) {
-    buildBtn.style.display = 'block';
-    buildBtn.innerHTML = '<span class="ui-icon">🔨</span> Строить';
-  } else {
-    buildBtn.style.display = 'none';
-  }
+    buildBtn.style.display = 'block'; buildBtn.innerHTML = '<span class="ui-icon">🔨</span> Строить';
+  } else buildBtn.style.display = 'none';
 }
 buildBtn.addEventListener('click', () => {
-  if (placingPiece) placeCurrentPiece();
-  else { renderBuildMenu(); openModal(buildModal); }
+  if (placingPiece) placeCurrentPiece(); else { renderBuildMenu(); openModal(buildModal); }
 });
 function placeCurrentPiece() {
   if (!placingPiece || !ghostMesh) return;
@@ -1490,16 +1249,13 @@ function placeCurrentPiece() {
     new THREE.BoxGeometry(p.size[0], p.size[1], p.size[2]),
     new THREE.MeshStandardMaterial({ color: p.color, roughness: 0.9, flatShading: true })
   );
-  mesh.position.copy(ghostMesh.position);
-  mesh.rotation.y = ghostMesh.rotation.y;
-  mesh.castShadow = true; mesh.receiveShadow = true;
-  scene.add(mesh);
+  mesh.position.copy(ghostMesh.position); mesh.rotation.y = ghostMesh.rotation.y;
+  mesh.castShadow = true; mesh.receiveShadow = true; scene.add(mesh);
   for (const [k, v] of Object.entries(p.cost)) removeItem(k, v);
-  beep(500);
   updateGhostPosition();
 }
 
-/* ==================== ДЕЙСТВИЕ / UI ==================== */
+/* ==================== ДЕЙСТВИЕ ==================== */
 const actionBtn = document.getElementById('action');
 let currentAction = null;
 function setAction(best) {
@@ -1512,22 +1268,8 @@ actionBtn.addEventListener('click', () => { if (currentAction) doAction(); });
 const toastEl = document.getElementById('toast');
 let toastTimer = null;
 function toast(msg) {
-  toastEl.textContent = msg;
-  toastEl.style.opacity = '1';
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toastEl.style.opacity = '0', 1600);
-}
-let actx = null;
-function beep(freq = 600) {
-  try {
-    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-    const o = actx.createOscillator(); const g = actx.createGain();
-    o.type = 'triangle'; o.frequency.setValueAtTime(freq, actx.currentTime);
-    g.gain.setValueAtTime(0.0001, actx.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.12, actx.currentTime + 0.01);
-    g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + 0.18);
-    o.connect(g).connect(actx.destination); o.start(); o.stop(actx.currentTime + 0.2);
-  } catch(e) {}
+  toastEl.textContent = msg; toastEl.style.opacity = '1';
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.style.opacity = '0', 1600);
 }
 
 /* ==================== УПРАВЛЕНИЕ ==================== */
@@ -1539,13 +1281,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyE' && currentAction && !modalOpen) doAction();
   if (e.code === 'Space' && !modalOpen) jumpRequested = true;
   if (e.code === 'Escape') { closeAllModals(); if (placingPiece) cancelPlacing(); }
-  if (e.code === 'KeyB' && !modalOpen && selectedSlot >= 0 && hotbar[selectedSlot] && hotbar[selectedSlot].id === 'hammer') {
-    renderBuildMenu(); openModal(buildModal);
-  }
-  if (!modalOpen && e.code.startsWith('Digit')) {
-    const n = parseInt(e.code.slice(5));
-    if (n >= 1 && n <= 9) selectSlot(n - 1);
-  }
+  if (!modalOpen && e.code.startsWith('Digit')) { const n = parseInt(e.code.slice(5)); if (n >= 1 && n <= 9) selectSlot(n - 1); }
 });
 addEventListener('keyup', e => keys.delete(e.code));
 addEventListener('blur', () => { keys.clear(); touchDive = false; });
@@ -1563,12 +1299,8 @@ document.getElementById('camBtn').addEventListener('click', () => {
   toast(isFirstPerson.value ? 'Вид от 1-го лица' : 'Вид от 3-го лица');
 });
 
-let camYaw = 0;
-let camPitch = 0.4;
-let camDist = 8;
-const CAM_MIN = 2;
-const CAM_MAX = 20;
-
+let camYaw = 0; let camPitch = 0.4; let camDist = 8;
+const CAM_MIN = 2; const CAM_MAX = 20;
 let camTouchId = null, camTouchStart = { x: 0, y: 0 };
 let pinchDist = 0;
 
@@ -1576,27 +1308,19 @@ addEventListener('pointerdown', e => {
   if (e.pointerType === 'mouse' && e.button !== 2) return;
   if (modalOpen) return;
   if (e.clientX > innerWidth * 0.4 && !e.target.closest('button, .modal, #hotbar, #stick')) {
-    if (camTouchId === null) {
-      camTouchId = e.pointerId;
-      camTouchStart = { x: e.clientX, y: e.clientY };
-    }
+    if (camTouchId === null) { camTouchId = e.pointerId; camTouchStart = { x: e.clientX, y: e.clientY }; }
   }
 });
 addEventListener('pointermove', e => {
   if (e.pointerId === camTouchId) {
-    const dx = e.clientX - camTouchStart.x;
-    const dy = e.clientY - camTouchStart.y;
-    camYaw -= dx * 0.005;
-    camPitch -= dy * 0.005;
+    camYaw -= (e.clientX - camTouchStart.x) * 0.005;
+    camPitch -= (e.clientY - camTouchStart.y) * 0.005;
     camPitch = Math.max(-1.2, Math.min(1.2, camPitch));
     camTouchStart = { x: e.clientX, y: e.clientY };
   }
 });
-function endCamTouch(e) {
-  if (e.pointerId === camTouchId) camTouchId = null;
-}
-addEventListener('pointerup', endCamTouch);
-addEventListener('pointercancel', endCamTouch);
+function endCamTouch(e) { if (e.pointerId === camTouchId) camTouchId = null; }
+addEventListener('pointerup', endCamTouch); addEventListener('pointercancel', endCamTouch);
 
 let touchPointers = {};
 addEventListener('touchstart', e => {
@@ -1607,18 +1331,12 @@ addEventListener('touchstart', e => {
   }
 }, {passive: false});
 addEventListener('touchmove', e => {
-  for (let t of e.changedTouches) {
-    if (touchPointers[t.identifier]) touchPointers[t.identifier] = t;
-  }
+  for (let t of e.changedTouches) { if (touchPointers[t.identifier]) touchPointers[t.identifier] = t; }
   if (Object.keys(touchPointers).length === 2) {
     const pts = Object.values(touchPointers);
     const newDist = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY);
-    if (pinchDist > 0) {
-      const zoomDelta = (pinchDist - newDist) * 0.02;
-      camDist = Math.max(CAM_MIN, Math.min(CAM_MAX, camDist + zoomDelta));
-    }
-    pinchDist = newDist;
-    e.preventDefault();
+    if (pinchDist > 0) camDist = Math.max(CAM_MIN, Math.min(CAM_MAX, camDist + (pinchDist - newDist) * 0.02));
+    pinchDist = newDist; e.preventDefault();
   }
 }, {passive: false});
 addEventListener('touchend', e => {
@@ -1627,20 +1345,14 @@ addEventListener('touchend', e => {
 });
 
 /* ==================== ДЖОЙСТИК ==================== */
-const stick = document.getElementById('stick');
-const knob = document.getElementById('knob');
+const stick = document.getElementById('stick'); const knob = document.getElementById('knob');
 let joyId = null, joyOrigin = { x: 0, y: 0 }, joyVec = { x: 0, y: 0 };
 addEventListener('pointerdown', e => {
-  if (e.pointerType === 'mouse' || joyId !== null) return;
-  if (modalOpen) return;
+  if (e.pointerType === 'mouse' || joyId !== null || modalOpen) return;
   if (e.clientX > innerWidth * 0.4) return;
   if (e.target.closest('#topright, #action, #jumpBtn, #diveBtn, #menuBtns, #buildBtn, .modal, #hotbar, #clockBadge, #startScreen')) return;
-  joyId = e.pointerId;
-  joyOrigin = { x: e.clientX, y: e.clientY };
-  stick.style.display = 'block';
-  stick.style.left = (e.clientX - 60) + 'px';
-  stick.style.top = (e.clientY - 60) + 'px';
-  stick.style.bottom = 'auto';
+  joyId = e.pointerId; joyOrigin = { x: e.clientX, y: e.clientY };
+  stick.style.display = 'block'; stick.style.left = (e.clientX - 60) + 'px'; stick.style.top = (e.clientY - 60) + 'px'; stick.style.bottom = 'auto';
   knob.style.transform = 'translate(0,0)';
 });
 addEventListener('pointermove', e => {
@@ -1652,47 +1364,10 @@ addEventListener('pointermove', e => {
   knob.style.transform = `translate(${kx}px, ${ky}px)`;
   joyVec.x = kx / max; joyVec.y = ky / max;
 });
-function endJoy(e) {
-  if (e.pointerId !== joyId) return;
-  joyId = null; joyVec.x = joyVec.y = 0;
-  stick.style.display = 'none';
-  knob.style.transform = 'translate(0,0)';
-}
-addEventListener('pointerup', endJoy);
-addEventListener('pointercancel', endJoy);
+function endJoy(e) { if (e.pointerId !== joyId) return; joyId = null; joyVec.x = joyVec.y = 0; stick.style.display = 'none'; knob.style.transform = 'translate(0,0)'; }
+addEventListener('pointerup', endJoy); addEventListener('pointercancel', endJoy);
 
-/* ==================== ОБНОВЛЕНИЕ ИГРОКА ==================== */
-const camDesired = new THREE.Vector3();
-const lookAt = new THREE.Vector3();
-const euler = new THREE.Euler(0, 0, 0, 'YXZ');
-
-function updateCamera(dt) {
-  if (isFirstPerson.value) {
-    camera.position.set(player.position.x, player.position.y + 1.6, player.position.z);
-    euler.set(camPitch, camYaw, 0);
-    camera.quaternion.setFromEuler(euler);
-  } else {
-    const sp = Math.hypot(velocity.x, velocity.z);
-    if (sp > 1.0 && camTouchId === null) {
-      const targetYaw = Math.atan2(-velocity.x, -velocity.z);
-      camYaw = dampAngle(camYaw, targetYaw, 2, dt);
-    }
-
-    const offset = new THREE.Vector3(
-      Math.sin(camYaw) * Math.cos(camPitch),
-      Math.sin(camPitch),
-      Math.cos(camYaw) * Math.cos(camPitch)
-    ).multiplyScalar(camDist);
-
-    camDesired.copy(player.position).add(offset);
-    camDesired.y += 1.2;
-    camera.position.lerp(camDesired, 1 - Math.exp(-10 * dt));
-    
-    lookAt.set(player.position.x, player.position.y + 1.2, player.position.z);
-    camera.lookAt(lookAt);
-  }
-}
-
+/* ==================== ЛОГИКА ИГРЫ ==================== */
 function dampAngle(cur, target, lambda, dt) {
   let diff = (target - cur) % (Math.PI * 2);
   if (diff > Math.PI) diff -= Math.PI * 2;
@@ -1718,9 +1393,7 @@ function resolveObstacles() {
     const dx = player.position.x - o.x, dz = player.position.z - o.z;
     const d = Math.hypot(dx, dz), min = o.radius + PLAYER_RADIUS;
     if (d < min && d > 0.0001) {
-      const k = min / d;
-      player.position.x = o.x + dx * k;
-      player.position.z = o.z + dz * k;
+      const k = min / d; player.position.x = o.x + dx * k; player.position.z = o.z + dz * k;
     }
   }
 }
@@ -1729,11 +1402,8 @@ function updatePlayer(dt) {
   const inp = getInput();
   const t = 1 - Math.exp(-ACCEL * dt);
   
-  const fwdX = -Math.sin(camYaw);
-  const fwdZ = -Math.cos(camYaw);
-  const rightX = Math.cos(camYaw);
-  const rightZ = -Math.sin(camYaw);
-
+  const fwdX = -Math.sin(camYaw); const fwdZ = -Math.cos(camYaw);
+  const rightX = Math.cos(camYaw); const rightZ = -Math.sin(camYaw);
   const moveX = fwdX * (-inp.z) + rightX * inp.x;
   const moveZ = fwdZ * (-inp.z) + rightZ * inp.x;
 
@@ -1744,8 +1414,7 @@ function updatePlayer(dt) {
   
   velocity.x += (moveX * SPEED * speedMul - velocity.x) * t;
   velocity.z += (moveZ * SPEED * speedMul - velocity.z) * t;
-  player.position.x += velocity.x * dt;
-  player.position.z += velocity.z * dt;
+  player.position.x += velocity.x * dt; player.position.z += velocity.z * dt;
   
   resolveObstacles();
   const half = WORLD_SIZE / 2 - 5;
@@ -1770,11 +1439,9 @@ function updatePlayer(dt) {
     if (player.position.y > waterSurface && vy > 0) { player.position.y = waterSurface; vy = 0; }
     onGround = false;
   } else {
-    if (jumpRequested && onGround) {
-      vy = JUMP_SPEED; onGround = false; player.position.y += vy * dt;
-    } else if (!onGround) {
-      vy -= GRAVITY * dt;
-      player.position.y += vy * dt;
+    if (jumpRequested && onGround) { vy = JUMP_SPEED; onGround = false; player.position.y += vy * dt; }
+    else if (!onGround) {
+      vy -= GRAVITY * dt; player.position.y += vy * dt;
       if (player.position.y <= groundY && vy <= 0) { player.position.y = groundY; vy = 0; onGround = true; }
     } else {
       const drop = player.position.y - groundY;
@@ -1793,277 +1460,67 @@ function updatePlayer(dt) {
   currentSpeed01 = onGround ? Math.min(1, sp / SPEED) : 0;
   
   if (sp > 0.4) {
-    if (isFirstPerson.value) {
-      player.rotation.y = camYaw + Math.PI;
-    } else {
-      player.rotation.y = dampAngle(player.rotation.y, Math.atan2(velocity.x, velocity.z), 12, dt);
-    }
+    if (isFirstPerson.value) player.rotation.y = camYaw + Math.PI;
+    else player.rotation.y = dampAngle(player.rotation.y, Math.atan2(velocity.x, velocity.z), 12, dt);
   }
   
   diveBtnEl.style.display = isSwimming ? 'flex' : 'none';
 }
 
-/* ==================== АНИМАЦИЯ (ИЗ МОДЕЛИ) ==================== */
+function updateCamera(dt) {
+  if (isFirstPerson.value) {
+    camera.position.set(player.position.x, player.position.y + 1.6, player.position.z);
+    const euler = new THREE.Euler(camPitch, camYaw, 0, 'YXZ');
+    camera.quaternion.setFromEuler(euler);
+  } else {
+    const sp = Math.hypot(velocity.x, velocity.z);
+    if (sp > 1.0 && camTouchId === null) {
+      camYaw = dampAngle(camYaw, Math.atan2(-velocity.x, -velocity.z), 2, dt);
+    }
+    const offset = new THREE.Vector3(
+      Math.sin(camYaw) * Math.cos(camPitch),
+      Math.sin(camPitch),
+      Math.cos(camYaw) * Math.cos(camPitch)
+    ).multiplyScalar(camDist);
+    const camDesired = new THREE.Vector3().copy(player.position).add(offset);
+    camDesired.y += 1.2;
+    camera.position.lerp(camDesired, 1 - Math.exp(-10 * dt));
+    camera.lookAt(player.position.x, player.position.y + 1.2, player.position.z);
+  }
+}
+
 function updatePlayerAnim(dt) {
   if (!mixer) return;
-
-  const s = currentSpeed01;
-  const sp = Math.hypot(velocity.x, velocity.z);
+  const s = currentSpeed01; const sp = Math.hypot(velocity.x, velocity.z);
   
-  if (!onGround && !isSwimming) {
-    if (actions['Jump']) fadeToAction('Jump', 0.1);
-    else if (actions['Run']) fadeToAction('Run', 0.1); 
-  } else if (isSwimming) {
-    if (actions['Swim']) fadeToAction('Swim', 0.2);
-    else if (actions['Walk']) fadeToAction('Walk', 0.2);
-  } else if (sp > 0.5) {
-    if (sp > SPEED * 0.7) {
-      if (actions['Run']) fadeToAction('Run', 0.2);
-      else fadeToAction('Walk', 0.2);
-    } else {
-      if (actions['Walk']) fadeToAction('Walk', 0.2);
-      else fadeToAction('Run', 0.2);
-    }
-  } else {
-    if (actions['Idle']) fadeToAction('Idle', 0.2);
+  if (!onGround && !isSwimming) { fadeToAction('Jump', 0.1); }
+  else if (isSwimming) { fadeToAction('Swim', 0.2); }
+  else if (sp > 0.5) {
+    if (sp > SPEED * 0.7) fadeToAction('Run', 0.2);
     else fadeToAction('Walk', 0.2);
-  }
+  } else { fadeToAction('Idle', 0.2); }
 
   mixer.update(dt);
-
-  // Плавный наклон, если модель не имеет встроенного наклона
   if (playerModel) {
     const targetTilt = s * 0.05;
     playerModel.rotation.x += (targetTilt - playerModel.rotation.x) * (1 - Math.exp(-8 * dt));
   }
 }
 
-/* ==================== ДЕЙСТВИЯ (ПОДБОР) ==================== */
-function findNearestAction() {
-  if (modalOpen || placingPiece) { setAction(null); return; }
-  const px = player.position.x, pz = player.position.z;
-  let best = null, bestDist = Infinity;
-
-  for (const r of rockData) {
-    if (!r.alive) continue;
-    const d = Math.hypot(px-r.x, pz-r.z);
-    if (d < 2.0 && d < bestDist) { bestDist = d; best = { kind: 'rock', target: r, label: 'Подобрать камень' }; }
-  }
-  for (const f of flintData) {
-    if (!f.alive) continue;
-    const d = Math.hypot(px-f.x, pz-f.z);
-    if (d < 2.0 && d < bestDist) { bestDist = d; best = { kind: 'flint', target: f, label: 'Подобрать кремень' }; }
-  }
-  for (const b of branchData) {
-    if (!b.alive) continue;
-    const d = Math.hypot(px-b.x, pz-b.z);
-    if (d < 2.0 && d < bestDist) { bestDist = d; best = { kind: 'branch', target: b, label: 'Подобрать ветку' }; }
-  }
-  const hasAxe = hasTool('stoneAxe') || hasTool('flintAxe');
-  for (const tt of treeData) {
-    if (!tt.alive) continue;
-    const d = Math.hypot(px-tt.x, pz-tt.z);
-    if (d < 2.4 && d < bestDist) {
-      bestDist = d;
-      const canCut = hasAxe || tt.type === 'small';
-      let label;
-      if (tt.type === 'small') label = hasAxe ? 'Рубить маленькое дерево' : 'Срубить руками';
-      else if (hasAxe) label = 'Рубить дерево';
-      else label = 'Нужен топор';
-      best = { kind: canCut ? 'tree' : 'tree-noaxe', target: tt, label };
-    }
-  }
-  setAction(best);
-}
-function hideInstance(inst, idx) {
-  dummy.position.set(0, -9999, 0); dummy.rotation.set(0, 0, 0); dummy.scale.set(0, 0, 0); dummy.updateMatrix();
-  inst.setMatrixAt(idx, dummy.matrix); inst.instanceMatrix.needsUpdate = true;
-}
-function doAction() {
-  if (!currentAction) return;
-  const { kind, target } = currentAction;
-  if (kind === 'rock') {
-    target.alive = false; hideInstance(rockInst, target.idx);
-    addItem('stone', 2 + Math.floor(Math.random()*2));
-    toast('+ камень'); beep(420);
-  } else if (kind === 'flint') {
-    target.alive = false; hideInstance(flintInst, target.idx);
-    addItem('flint', 2 + Math.floor(Math.random()*2));
-    toast('+ кремень'); beep(560);
-  } else if (kind === 'branch') {
-    target.alive = false; hideInstance(branchInst, target.idx);
-    addItem('wood', 1 + Math.floor(Math.random()*2));
-    toast('+ дерево'); beep(480);
-  } else if (kind === 'tree' || kind === 'tree-noaxe') {
-    if (kind === 'tree-noaxe') { toast('Сначала топор'); return; }
-    const hasFlint = hasTool('flintAxe');
-    const dmg = target.type === 'small' ? 2 : (hasFlint ? 6 : 4);
-    target.hp -= dmg;
-    beep(hasFlint ? 300 : 240);
-    if (target.hp <= 0) {
-      target.alive = false;
-      for (const inst of target.insts) hideInstance(inst, target.idx);
-      let wood, resin = 0;
-      if (target.type === 'small') {
-        wood = 2 + Math.floor(Math.random()*2); resin = 1 + Math.floor(Math.random()*2);
-        toast(`Маленькое дерево (+${wood}🪵 +${resin}🟠)`);
-      } else {
-        wood = (target.type === 'oak' ? 5 : target.type === 'birch' ? 3 : 4) + Math.floor(Math.random()*3);
-        if (Math.random() < 0.6) resin = 1 + Math.floor(Math.random()*2);
-        const name = target.type === 'oak' ? 'Дуб' : target.type === 'birch' ? 'Берёза' : 'Сосна';
-        toast(`${name} (+${wood}🪵${resin > 0 ? ` +${resin}🟠` : ''})`);
-      }
-      addItem('wood', wood);
-      if (resin > 0) addItem('resin', resin);
-    } else {
-      toast(target.type === 'small' ? 'Хрясь!' : (hasFlint ? 'Быстрый удар' : 'Удар топором'));
-    }
-  }
-  setAction(null);
-}
-
-/* ==================== КИСЛОРОД / ВРЕМЯ СУТОК / ПОГОДА ==================== */
-const oxyEl = document.getElementById('oxygen');
-const oxyFill = document.getElementById('oxyFill');
+/* ==================== ДЕЙСТВИЯ / UI / ЦИКЛ ==================== */
 function updateOxygenUI() {
+  const oxyEl = document.getElementById('oxygen');
   oxyEl.style.display = isUnderwater ? 'block' : 'none';
   if (!isUnderwater) return;
-  const pct = (oxygen / OXYGEN_MAX) * 100;
-  oxyFill.style.width = pct + '%';
-  oxyFill.style.background = oxygen < 30 ? '#f44336' : 'linear-gradient(90deg, #4fc3f7, #29b6f6)';
+  document.getElementById('oxyFill').style.width = (oxygen / OXYGEN_MAX) * 100 + '%';
 }
 
-let timeOfDay = 90;
-const SKY_DAY = { top: 0x4a90d0, mid: 0xa8c8d8, bot: 0xe0d8c0 };
-const SKY_SUNSET = { top: 0x2a2a6a, mid: 0xff6050, bot: 0xffb070 };
-const SKY_NIGHT = { top: 0x080818, mid: 0x101828, bot: 0x1a2038 };
-const _c1 = new THREE.Color(), _c2 = new THREE.Color(), _c3 = new THREE.Color();
-function lerpHex(a, b, t) { _c1.setHex(a); _c2.setHex(b); return _c3.copy(_c1).lerp(_c2, t).clone(); }
-
-function updateDayNight(dt) {
-  timeOfDay = (timeOfDay + dt) % DAY_CYCLE;
-  const sunAngle = (timeOfDay / DAY_CYCLE) * Math.PI * 2;
-  const elev = Math.sin(sunAngle);
-
-  const dayFactor = Math.max(0, elev);
-  sun.intensity = (0.1 + dayFactor * 2.0) * weatherSunMul;
-  sun.color.setHex(dayFactor > 0.5 ? 0xfff2d0 : 0xff9060);
-  hemi.intensity = (0.15 + dayFactor * 0.75) * weatherAmbMul;
-
-  let skyTop, skyMid, skyBot;
-  if (elev > 0.3) {
-    const t = Math.min(1, (elev - 0.3) / 0.7);
-    skyTop = lerpHex(SKY_SUNSET.top, SKY_DAY.top, t);
-    skyMid = lerpHex(SKY_SUNSET.mid, SKY_DAY.mid, t);
-    skyBot = lerpHex(SKY_SUNSET.bot, SKY_DAY.bot, t);
-  } else if (elev > -0.2) {
-    const t = (elev + 0.2) / 0.5;
-    skyTop = lerpHex(SKY_NIGHT.top, SKY_SUNSET.top, t);
-    skyMid = lerpHex(SKY_NIGHT.mid, SKY_SUNSET.mid, t);
-    skyBot = lerpHex(SKY_NIGHT.bot, SKY_SUNSET.bot, t);
-  } else {
-    skyTop = new THREE.Color(SKY_NIGHT.top);
-    skyMid = new THREE.Color(SKY_NIGHT.mid);
-    skyBot = new THREE.Color(SKY_NIGHT.bot);
-  }
-  if (weatherSkyGray > 0) {
-    const gray = new THREE.Color(0x666666);
-    skyTop.lerp(gray, weatherSkyGray);
-    skyMid.lerp(gray, weatherSkyGray * 0.8);
-    skyBot.lerp(gray, weatherSkyGray * 0.6);
-  }
-
-  skyMat.uniforms.topColor.value.copy(skyTop);
-  skyMat.uniforms.midColor.value.copy(skyMid);
-  skyMat.uniforms.botColor.value.copy(skyBot);
-
-  const sunHeight = Math.max(0.1, elev);
-  sun.position.set(
-    player.position.x + Math.cos(sunAngle) * 80,
-    player.position.y + sunHeight * 100,
-    player.position.z + 40
-  );
-  sun.target.position.copy(player.position);
-  sun.castShadow = elev > 0.05;
-
-  currentFogColor.copy(skyMid);
-
-  const hour = Math.floor((timeOfDay / DAY_CYCLE) * 24) + 6;
-  const mm = Math.floor(((timeOfDay / DAY_CYCLE) * 24 * 60) % 60);
-  const hh = hour % 24;
-  document.getElementById('clockTime').textContent = `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
-  document.getElementById('clockIcon').innerHTML = elev > 0.1 ? '<span class="ui-icon ui-icon-white">☀️</span>' : (elev > -0.1 ? '<span class="ui-icon ui-icon-white">🌅</span>' : '<span class="ui-icon ui-icon-white">🌙</span>');
-}
-
-let weather = 'clear';
-let weatherTimer = 180 + Math.random() * 120;
-let weatherSunMul = 1, weatherAmbMul = 1, weatherSkyGray = 0, weatherFogMul = 1;
-const currentFogColor = new THREE.Color(0xa8c8d8);
-const WEATHER_NAMES = { clear: 'Ясно', cloudy: 'Облачно', rain: 'Дождь', fog: 'Туман' };
-function applyWeather() {
-  switch (weather) {
-    case 'clear':  weatherSunMul = 1.0; weatherAmbMul = 1.0; weatherSkyGray = 0;   weatherFogMul = 1.0; break;
-    case 'cloudy': weatherSunMul = 0.5; weatherAmbMul = 0.8; weatherSkyGray = 0.4; weatherFogMul = 1.2; break;
-    case 'rain':   weatherSunMul = 0.3; weatherAmbMul = 0.7; weatherSkyGray = 0.6; weatherFogMul = 1.6; break;
-    case 'fog':    weatherSunMul = 0.5; weatherAmbMul = 0.7; weatherSkyGray = 0.5; weatherFogMul = 3.0; break;
-  }
-  document.getElementById('weatherName').textContent = '· ' + WEATHER_NAMES[weather];
-}
-applyWeather();
-function updateWeather(dt) {
-  weatherTimer -= dt;
-  if (weatherTimer <= 0) {
-    const opts = ['clear', 'clear', 'cloudy', 'cloudy', 'rain', 'fog'];
-    weather = opts[Math.floor(Math.random() * opts.length)];
-    weatherTimer = 180 + Math.random() * 180;
-    applyWeather();
-    toast(`Погода: ${WEATHER_NAMES[weather]}`);
-  }
-}
-
-const FOG_WATER = new THREE.Color(0x1a4a6a);
-function updateAtmosphere() {
-  if (isUnderwater) {
-    scene.fog.color.copy(FOG_WATER);
-    scene.fog.density = FOG_DENSITY_UNDER;
-    scene.background.copy(FOG_WATER);
-    waterMat.opacity = 0.15;
-  } else {
-    scene.fog.color.copy(currentFogColor);
-    scene.fog.density = FOG_DENSITY * weatherFogMul;
-    scene.background.copy(currentFogColor);
-    waterMat.opacity = 0.75;
-  }
-}
-
-const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(scene, camera));
-composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.35, 0.6, 0.9));
-composer.addPass(new OutputPass());
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-  composer.setSize(innerWidth, innerHeight);
-});
-
-/* ==================== МОДАЛЬНЫЕ ОКНА ==================== */
 const invModal = document.getElementById('invModal');
 const craftModal = document.getElementById('craftModal');
 const buildModal = document.getElementById('buildModal');
 let modalOpen = false;
-function openModal(m) {
-  closeAllModals();
-  m.classList.add('open');
-  modalOpen = true;
-  if (m === invModal) { renderInventoryModal(); renderHotbarModal(); }
-}
-function closeAllModals() {
-  invModal.classList.remove('open');
-  craftModal.classList.remove('open');
-  buildModal.classList.remove('open');
-  modalOpen = false;
-}
+function openModal(m) { closeAllModals(); m.classList.add('open'); modalOpen = true; if (m === invModal) { renderInventoryModal(); renderHotbarModal(); } }
+function closeAllModals() { invModal.classList.remove('open'); craftModal.classList.remove('open'); buildModal.classList.remove('open'); modalOpen = false; }
 document.getElementById('openInv').addEventListener('click', () => openModal(invModal));
 document.getElementById('openCraft').addEventListener('click', () => { renderCraft(); openModal(craftModal); });
 document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeAllModals));
@@ -2073,79 +1530,105 @@ document.getElementById('fsBtn').addEventListener('click', async () => {
   try {
     if (!document.fullscreenElement) {
       await document.documentElement.requestFullscreen();
-      if (screen.orientation && screen.orientation.lock) {
-        try { await screen.orientation.lock('landscape'); } catch(e) {}
-      }
-    } else {
-      await document.exitFullscreen();
-    }
+      if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape');
+    } else await document.exitFullscreen();
   } catch(e) {}
 });
 
-/* ==================== ЦИКЛ ==================== */
+function findNearestAction() {
+  if (modalOpen || placingPiece) { setAction(null); return; }
+  const px = player.position.x, pz = player.position.z;
+  let best = null, bestDist = Infinity;
+
+  for (const r of rockData) { if (!r.alive) continue; const d = Math.hypot(px-r.x, pz-r.z); if (d < 2.0 && d < bestDist) { bestDist = d; best = { kind: 'rock', target: r, label: 'Подобрать камень' }; } }
+  for (const f of flintData) { if (!f.alive) continue; const d = Math.hypot(px-f.x, pz-f.z); if (d < 2.0 && d < bestDist) { bestDist = d; best = { kind: 'flint', target: f, label: 'Подобрать кремень' }; } }
+  for (const b of branchData) { if (!b.alive) continue; const d = Math.hypot(px-b.x, pz-b.z); if (d < 2.0 && d < bestDist) { bestDist = d; best = { kind: 'branch', target: b, label: 'Подобрать ветку' }; } }
+  
+  const hasAxe = hasTool('stoneAxe') || hasTool('flintAxe');
+  for (const tt of treeData) {
+    if (!tt.alive) continue;
+    const d = Math.hypot(px-tt.x, pz-tt.z);
+    if (d < 2.4 && d < bestDist) {
+      bestDist = d;
+      const canCut = hasAxe || tt.type === 'small';
+      let label = tt.type === 'small' ? (hasAxe ? 'Рубить' : 'Срубить руками') : (hasAxe ? 'Рубить дерево' : 'Нужен топор');
+      best = { kind: canCut ? 'tree' : 'tree-noaxe', target: tt, label };
+    }
+  }
+  setAction(best);
+}
+
+function hideInstance(inst, idx) {
+  dummy.position.set(0, -9999, 0); dummy.rotation.set(0, 0, 0); dummy.scale.set(0, 0, 0); dummy.updateMatrix();
+  inst.setMatrixAt(idx, dummy.matrix); inst.instanceMatrix.needsUpdate = true;
+}
+
+function doAction() {
+  if (!currentAction) return;
+  const { kind, target } = currentAction;
+  if (kind === 'rock') { target.alive = false; hideInstance(rockInst, target.idx); addItem('stone', 2 + Math.floor(Math.random()*2)); toast('+ камень'); }
+  else if (kind === 'flint') { target.alive = false; hideInstance(flintInst, target.idx); addItem('flint', 2 + Math.floor(Math.random()*2)); toast('+ кремень'); }
+  else if (kind === 'branch') { target.alive = false; hideInstance(branchInst, target.idx); addItem('wood', 1 + Math.floor(Math.random()*2)); toast('+ дерево'); }
+  else if (kind === 'tree' || kind === 'tree-noaxe') {
+    if (kind === 'tree-noaxe') { toast('Сначала топор'); return; }
+    const hasFlint = hasTool('flintAxe');
+    const dmg = target.type === 'small' ? 2 : (hasFlint ? 6 : 4);
+    target.hp -= dmg;
+    if (target.hp <= 0) {
+      target.alive = false; for (const inst of target.insts) hideInstance(inst, target.idx);
+      let wood, resin = 0;
+      if (target.type === 'small') { wood = 2; resin = 1; } else { wood = 4; if (Math.random() < 0.6) resin = 1; }
+      addItem('wood', wood); if (resin > 0) addItem('resin', resin);
+      toast(`+${wood}🪵 ${resin > 0 ? '+'+resin+'🟠' : ''}`);
+    } else { toast('Удар!'); }
+  }
+  setAction(null);
+}
+
 const clock = new THREE.Clock();
 let elapsed = 0;
 
 function animate() {
   requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), 0.05);
-  elapsed += dt;
+  const dt = Math.min(clock.getDelta(), 0.05); elapsed += dt;
 
   updatePlayer(dt);
   updatePlayerAnim(dt);
   updateCamera(dt);
   findNearestAction();
-  updateDayNight(dt);
-  updateWeather(dt);
-  updateAtmosphere();
   updateOxygenUI();
   updateBuildBtn();
-  updateTorch(elapsed);
-  updateRain(dt);
 
   if (placingPiece) updateGhostPosition();
   waterNormalMap.offset.x = elapsed * 0.02;
   waterNormalMap.offset.y = elapsed * 0.03;
-  
   if (waterMat.userData.shader) {
     waterMat.userData.shader.uniforms.uTime.value = elapsed;
-    waterMat.userData.shader.uniforms.uWaveHeight.value = weather === 'rain' ? 2.5 : 0.5;
+    waterMat.userData.shader.uniforms.uWaveHeight.value = 0.5;
   }
-
   for (const sh of grassShaders) {
     sh.uniforms.uPlayerPos.value.copy(player.position);
     sh.uniforms.uTime.value = elapsed;
   }
-
   sky.position.copy(player.position);
-  composer.render();
+  
+  renderer.render(scene, camera); // Прямой рендер без постобработки
 }
 
-function updateTorch(t) {
-  if (selectedSlot < 0 || !hotbar[selectedSlot] || hotbar[selectedSlot].id !== 'torch') return;
-  const flicker = 2.3 + Math.sin(t * 18) * 0.35 + Math.sin(t * 27) * 0.2 + Math.sin(t * 9) * 0.15;
-  torchLight.intensity = flicker;
-  const scale = 1 + Math.sin(t * 15) * 0.08;
-  torchFlame.scale.set(scale, 1 + Math.sin(t * 20) * 0.15, scale);
-  torchFlame2.scale.set(scale, 1 + Math.sin(t * 25) * 0.2, scale);
+async function initPlayer() {
+  const spawn = findSpawn();
+  player.position.set(spawn.x, getTerrainYAt(spawn.x, spawn.z) + 1, spawn.z);
+  await loadPlayerModel();
+  renderOutsideHotbar();
 }
 
-/* ==================== ЗАПУСК ==================== */
 initPlayer().then(() => {
   document.getElementById('loading').style.display = 'none';
   document.getElementById('startScreen').style.display = 'flex';
   
   document.getElementById('startBtn').addEventListener('click', async () => {
-    try {
-      if (document.documentElement.requestFullscreen) {
-        await document.documentElement.requestFullscreen();
-      }
-    } catch(e) {}
-    try {
-      if (screen.orientation && screen.orientation.lock) {
-        await screen.orientation.lock('landscape');
-      }
-    } catch(e) {}
+    try { if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen(); } catch(e) {}
+    try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch(e) {}
     
     document.getElementById('startScreen').style.display = 'none';
     document.getElementById('clockBadge').style.display = 'flex';
@@ -2154,17 +1637,9 @@ initPlayer().then(() => {
     document.getElementById('hotbar').style.display = 'flex';
     document.getElementById('jumpBtn').style.display = 'flex';
     
-    if (!mixer) initFallbackModel();
     animate();
   });
 });
-
-async function initPlayer() {
-  const spawn = findSpawn();
-  player.position.set(spawn.x, getTerrainYAt(spawn.x, spawn.z) + 1, spawn.z);
-  await loadPlayerModel();
-  renderOutsideHotbar();
-}
 </script>
 </body>
-</html>
+  </html>
