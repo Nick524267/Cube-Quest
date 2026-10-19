@@ -19,7 +19,7 @@
     user-select: none; -webkit-user-select: none;
     touch-action: none;
   }
-  canvas { display: block; touch-action: none; }
+  canvas { display: block; touch-action: none; width: 100vw !important; height: 100vh !important; }
 
   #loading {
     position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
@@ -365,7 +365,7 @@
 <div id="toast"></div>
 <div id="stick" style="display:none;"><div id="knob"></div></div>
 
-<!-- Исправленное подключение модулей (самый надежный способ) -->
+<!-- Подключение модулей -->
 <script type="importmap">
 {
   "imports": {
@@ -417,12 +417,19 @@ const HOTBAR_SLOTS   = 9;
 /* ==================== РЕНДЕР ==================== */
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.setSize(innerWidth, innerHeight);
+renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 document.body.appendChild(renderer.domElement);
+
+// Обработка ресайза для устранения черного экрана
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
 
 const MAX_ANISO = renderer.capabilities.getMaxAnisotropy();
 
@@ -430,7 +437,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xa8c8d8);
 scene.fog = new THREE.FogExp2(0xa8c8d8, FOG_DENSITY);
 
-const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.1, 3000);
+const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 3000);
 camera.position.set(0, 12, 18);
 
 const hemi = new THREE.HemisphereLight(0xd8ecff, 0x445533, 0.9);
@@ -613,7 +620,7 @@ const waterMat = new THREE.MeshStandardMaterial({
   color: 0x2a8ab0, transparent: true, opacity: 0.75,
   roughness: 0.1, metalness: 0.6, side: THREE.DoubleSide,
   normalMap: waterNormalMap, normalScale: new THREE.Vector2(0.5, 0.5),
-  depthWrite: false, flatShading: true
+  depthWrite: true, flatShading: true // Исправлено на true, чтобы не было черных артефактов
 });
 
 waterMat.onBeforeCompile = (shader) => {
@@ -975,9 +982,14 @@ function loadPlayerModel() {
 
       mixer = new THREE.AnimationMixer(playerModel);
       gltf.animations.forEach(clip => { actions[clip.name] = mixer.clipAction(clip); });
+      
+      // Проверяем, какие анимации есть в модели
       if (actions['Idle']) { activeAction = actions['Idle']; activeAction.play(); }
+      else if (gltf.animations.length > 0) { activeAction = actions[gltf.animations[0].name]; activeAction.play(); }
+      
       resolve();
-    }, undefined, () => {
+    }, undefined, (err) => {
+      console.warn("Не удалось загрузить модель, используется заглушка.", err);
       // Запасной вариант
       const g = new THREE.Group();
       const skinMat = new THREE.MeshStandardMaterial({ color: 0x8F6E43 });
@@ -1501,7 +1513,7 @@ function updatePlayerAnim(dt) {
     else fadeToAction('Walk', 0.2);
   } else { fadeToAction('Idle', 0.2); }
 
-  mixer.update(dt);
+  mixer.update(dt); // КРИТИЧЕСКИ ВАЖНО: обновление анимаций с dt
   if (playerModel) {
     const targetTilt = s * 0.05;
     playerModel.rotation.x += (targetTilt - playerModel.rotation.x) * (1 - Math.exp(-8 * dt));
@@ -1586,12 +1598,22 @@ function doAction() {
   setAction(null);
 }
 
-const clock = new THREE.Clock();
+// Таймер и обновление времени суток
+let lastTime = performance.now();
 let elapsed = 0;
 
-function animate() {
+function animate(now) {
   requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), 0.05); elapsed += dt;
+  
+  // Вычисляем dt, защищаясь от нулевых или скачкообразных значений
+  const currentTime = now || performance.now();
+  let dt = (currentTime - lastTime) / 1000;
+  lastTime = currentTime;
+  
+  if (dt > 0.1) dt = 0.1; // Ограничиваем dt при лагах
+  if (dt < 0.001) dt = 0.016; // Минимальный шаг, если браузер вернул 0
+  
+  elapsed += dt;
 
   updatePlayer(dt);
   updatePlayerAnim(dt);
@@ -1612,8 +1634,61 @@ function animate() {
     sh.uniforms.uTime.value = elapsed;
   }
   sky.position.copy(player.position);
+
+  // Обновление времени суток
+  updateDayNight(dt);
   
   renderer.render(scene, camera);
+}
+
+// Время суток
+let timeOfDay = 90; // 6:00 утра
+const DAY_DURATION = 720; // 12 минут на полный цикл
+
+function updateDayNight(dt) {
+  timeOfDay = (timeOfDay + dt) % DAY_DURATION;
+  const progress = timeOfDay / DAY_DURATION;
+  
+  // Вращение солнца
+  const angle = progress * Math.PI * 2 - Math.PI / 2;
+  const sunHeight = Math.sin(angle);
+  
+  // Позиция солнца (относительно игрока)
+  const sunDist = 100;
+  sun.position.set(
+    player.position.x + Math.cos(angle) * sunDist,
+    player.position.y + Math.max(0.1, sunHeight) * sunDist,
+    player.position.z + 40
+  );
+  sun.target.position.copy(player.position);
+  sun.intensity = Math.max(0, sunHeight) * 2.5;
+  sun.castShadow = sunHeight > 0.1;
+
+  // Цвет неба
+  let skyColor;
+  if (sunHeight > 0.2) {
+    // День
+    skyColor = new THREE.Color(0xa8c8d8);
+    hemi.intensity = 0.9;
+  } else if (sunHeight > -0.1) {
+    // Закат / Рассвет
+    const t = (sunHeight + 0.1) / 0.3;
+    skyColor = new THREE.Color().lerpColors(new THREE.Color(0xff6a3d), new THREE.Color(0xa8c8d8), t);
+    hemi.intensity = 0.4 + 0.5 * t;
+  } else {
+    // Ночь
+    skyColor = new THREE.Color(0x0a1020);
+    hemi.intensity = 0.15;
+  }
+  
+  scene.background = skyColor;
+  scene.fog.color = skyColor;
+
+  // Обновление часов на экране
+  const hours = Math.floor(progress * 24);
+  const mins = Math.floor((progress * 24 * 60) % 60);
+  const timeStr = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+  document.getElementById('clockTime').textContent = timeStr;
 }
 
 async function initPlayer() {
@@ -1638,9 +1713,15 @@ initPlayer().then(() => {
     document.getElementById('hotbar').style.display = 'flex';
     document.getElementById('jumpBtn').style.display = 'flex';
     
-    animate();
+    // Принудительно обновляем размер холста перед стартом
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    
+    lastTime = performance.now();
+    requestAnimationFrame(animate);
   });
 });
 </script>
 </body>
-</html>
+  </html>
