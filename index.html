@@ -960,20 +960,15 @@ function loadPlayerModel() {
       playerModel = baseModel;
       playerModel.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } });
       
-      // Улучшенная центровка и масштабирование модели
-      playerModel.updateMatrixWorld(true);
+      // Автоматический расчет масштаба (чтобы рост был ~1.8 метра)
       const box = new THREE.Box3().setFromObject(playerModel);
       const size = box.getSize(new THREE.Vector3());
-      
-      // Модель может быть размером 100 единиц или 0.01. Приводим к росту 1.8 м.
       const targetHeight = 1.8;
       const scaleFactor = targetHeight / (size.y || 1);
       playerModel.scale.set(scaleFactor, scaleFactor, scaleFactor);
       
-      // Ставим на землю и центрируем по X/Z
+      // Ставим ноги на землю (Y = 0), но НЕ сдвигаем по X и Z, чтобы не улетела
       playerModel.position.y = -box.min.y * scaleFactor;
-      playerModel.position.x = -((box.max.x + box.min.x) / 2) * scaleFactor;
-      playerModel.position.z = -((box.max.z + box.min.z) / 2) * scaleFactor;
       
       player.add(playerModel);
 
@@ -1019,7 +1014,7 @@ function loadPlayerModel() {
 
     }, undefined, (err) => {
       console.warn("Не удалось загрузить базовую модель, используется заглушка.", err);
-      // Заглушка, если FBX не загрузился
+      // Заглушка
       const g = new THREE.Group();
       const skinMat = new THREE.MeshStandardMaterial({ color: 0x8F6E43 });
       const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 0.8, 4, 8), skinMat);
@@ -1333,7 +1328,7 @@ const diveBtnEl = document.getElementById('diveBtn');
 diveBtnEl.addEventListener('pointerdown', e => { e.preventDefault(); touchDive = true; });
 ['pointerup','pointerleave','pointercancel'].forEach(ev => diveBtnEl.addEventListener(ev, () => { touchDive = false; }));
 
-/* ==================== КАМЕРА (ИНВЕРСИЯ ИСПРАВЛЕНА) ==================== */
+/* ==================== КАМЕРА (КЛАССИЧЕСКАЯ МАТЕМАТИКА) ==================== */
 const isFirstPerson = { value: false };
 document.getElementById('camBtn').addEventListener('click', () => {
   isFirstPerson.value = !isFirstPerson.value;
@@ -1355,9 +1350,9 @@ addEventListener('pointerdown', e => {
 });
 addEventListener('pointermove', e => {
   if (e.pointerId === camTouchId) {
-    // Изменено на += для устранения инверсии (вправо тянем - камера вправо)
-    camYaw += (e.clientX - camTouchStart.x) * 0.005;
-    camPitch += (e.clientY - camTouchStart.y) * 0.005;
+    // Свайп вправо -> камера вправо. Свайп вверх -> камера вверх.
+    camYaw -= (e.clientX - camTouchStart.x) * 0.005;
+    camPitch -= (e.clientY - camTouchStart.y) * 0.005;
     camPitch = Math.max(-1.2, Math.min(1.2, camPitch));
     camTouchStart = { x: e.clientX, y: e.clientY };
   }
@@ -1445,6 +1440,7 @@ function updatePlayer(dt) {
   const inp = getInput();
   const t = 1 - Math.exp(-ACCEL * dt);
   
+  // Стандартная математика движения относительно камеры
   const fwdX = -Math.sin(camYaw); const fwdZ = -Math.cos(camYaw);
   const rightX = Math.cos(camYaw); const rightZ = -Math.sin(camYaw);
   const moveX = fwdX * (-inp.z) + rightX * inp.x;
@@ -1520,11 +1516,11 @@ function updateCamera(dt) {
     if (sp > 1.0 && camTouchId === null) {
       camYaw = dampAngle(camYaw, Math.atan2(-velocity.x, -velocity.z), 2, dt);
     }
-    // Инвертирован Z-вектор, чтобы камера смотрела на модель
+    // Камера стоит за спиной (положительные значения sin/cos)
     const offset = new THREE.Vector3(
-      -Math.sin(camYaw) * Math.cos(camPitch),
+      Math.sin(camYaw) * Math.cos(camPitch),
       Math.sin(camPitch),
-      -Math.cos(camYaw) * Math.cos(camPitch)
+      Math.cos(camYaw) * Math.cos(camPitch)
     ).multiplyScalar(camDist);
     const camDesired = new THREE.Vector3().copy(player.position).add(offset);
     camDesired.y += 1.2;
@@ -1630,7 +1626,6 @@ function doAction() {
 }
 
 const clock = new THREE.Clock();
-// Исправлено: 6 утра = 180 секунд из 720 (12 минут)
 let timeOfDay = 180; 
 const DAY_DURATION = 720; 
 
