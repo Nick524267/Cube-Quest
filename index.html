@@ -6,108 +6,268 @@
 <title>Cube_Quest</title>
 
 <style>
+  /* Стили Project Zomboid */
   :root {
-    --wood-dark: #2e1f12; --wood-mid: #4a3520; --wood-light: #6a4a2a;
-    --wood-border: #a8804a; --parchment: #f5e6c8; --gold: #e0b060; --gold-bright: #ffd27a;
+    --pz-bg: #0a0a0a;
+    --pz-panel: rgba(15, 15, 15, 0.95);
+    --pz-border: #333;
+    --pz-text: #999;
+    --pz-text-dark: #555;
+    --pz-highlight: #b8c7a1; /* Бледно-зеленый цвет PZ */
+    --pz-red: #8b2525;       /* Кроваво-красный */
+    --pz-font: Consolas, "Courier New", Courier, monospace;
   }
+
   * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--wood-dark); font-family: 'Segoe UI', sans-serif; user-select: none; touch-action: none; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: var(--pz-bg);
+    font-family: var(--pz-font);
+    user-select: none; -webkit-user-select: none;
+    touch-action: none;
+  }
   canvas { display: block; touch-action: none; width: 100vw !important; height: 100vh !important; }
 
-  #versionLabel { position: fixed; top: 60px; right: 12px; color: var(--gold-bright); font-size: 12px; background: rgba(0,0,0,0.6); padding: 2px 6px; border-radius: 4px; z-index: 100; }
-  
-  .ui-icon { filter: sepia(1) hue-rotate(-15deg) saturate(1.5) brightness(0.9); display: inline-block; }
-
-  /* Меню */
-  .menu-screen { position: fixed; inset: 0; background: radial-gradient(circle at 50% 40%, rgba(42,26,14,0.95), rgba(10,6,2,0.98)); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; padding: 20px; backdrop-filter: blur(5px); }
+  /* Общие стили меню */
+  .menu-screen {
+    position: fixed; inset: 0;
+    background: var(--pz-panel);
+    display: none; flex-direction: column;
+    align-items: flex-start; justify-content: center;
+    z-index: 1000; padding: 10vw;
+    border-left: 2px solid var(--pz-border);
+  }
   .menu-screen.active { display: flex; }
-  .menu-screen h1 { color: var(--gold-bright); font-size: clamp(32px, 8vw, 64px); margin: 0 0 10px; letter-spacing: 6px; text-shadow: 0 0 30px rgba(224,176,96,.6); }
-  .menu-btn { width: 280px; padding: 14px; margin-bottom: 10px; background: linear-gradient(180deg, var(--wood-mid), var(--wood-dark)); color: var(--parchment); border: 2px solid var(--wood-border); border-radius: 8px; font-size: 18px; font-weight: 600; cursor: pointer; transition: all .1s; font-family: inherit; }
-  .menu-btn:hover { background: var(--wood-light); color: #fff; border-color: var(--gold); }
-  .menu-btn:active { transform: scale(.97); }
-  .menu-btn:disabled { opacity: .5; cursor: not-allowed; }
+  
+  .menu-title {
+    color: var(--pz-red);
+    font-size: clamp(32px, 6vw, 54px);
+    font-weight: bold;
+    text-transform: uppercase;
+    margin: 0 0 10px 0;
+    letter-spacing: 2px;
+    text-shadow: 2px 2px 0px #000;
+  }
+  .menu-subtitle {
+    color: var(--pz-text);
+    font-size: 14px;
+    margin-bottom: 40px;
+    text-transform: uppercase;
+  }
 
-  #pauseMenu { background: rgba(10, 6, 2, 0.85); justify-content: flex-start; padding-top: 5vh; }
-  .settings-panel { background: rgba(0,0,0,0.4); border: 2px solid var(--wood-border); padding: 15px; border-radius: 12px; width: 320px; margin-bottom: 20px; color: var(--parchment); }
-  .settings-panel h3 { margin: 0 0 10px; color: var(--gold-bright); text-align: center; font-size: 16px; }
-  .setting-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 14px; }
-  .setting-row input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--gold); }
-  .setting-row select { padding: 4px; background: var(--wood-dark); color: white; border: 1px solid var(--wood-border); border-radius: 4px; }
+  .menu-btn {
+    background: transparent;
+    color: var(--pz-text);
+    border: none;
+    border-bottom: 1px solid transparent;
+    font-family: var(--pz-font);
+    font-size: 20px;
+    font-weight: bold;
+    padding: 8px 0;
+    margin-bottom: 5px;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.1s;
+    text-transform: uppercase;
+  }
+  .menu-btn:hover {
+    color: var(--pz-highlight);
+    border-bottom: 1px solid var(--pz-highlight);
+    padding-left: 10px;
+  }
+  .menu-btn:disabled {
+    color: var(--pz-text-dark);
+    cursor: not-allowed;
+  }
+  .menu-btn:disabled:hover {
+    color: var(--pz-text-dark);
+    border-bottom: 1px solid transparent;
+    padding-left: 0;
+  }
 
-  /* Игровой интерфейс */
-  #topright { position: fixed; top: 12px; right: 60px; display: flex; gap: 6px; color: var(--parchment); z-index: 5; }
-  #menuBtns { position: fixed; top: 12px; left: 12px; display: none; gap: 6px; z-index: 6; }
-  .icon-btn { width: 46px; height: 46px; border-radius: 8px; border: 2px solid var(--wood-border); background: rgba(30,20,10,.8); color: var(--parchment); font-size: 20px; cursor: pointer; }
-  .icon-btn:active { border-color: var(--gold); }
-  #pauseBtn { position: fixed; top: 12px; right: 12px; width: 40px; height: 40px; border-radius: 8px; border: 2px solid var(--wood-border); background: rgba(30,20,10,.8); color: white; font-size: 18px; z-index: 100; cursor: pointer; display: none; }
+  /* Версия (теперь только в меню) */
+  #versionLabel {
+    position: absolute; bottom: 20px; left: 10vw;
+    color: var(--pz-text-dark); font-size: 12px;
+    font-family: var(--pz-font); pointer-events: none;
+  }
 
-  #clockBadge { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); display: none; gap: 8px; align-items: center; padding: 6px 14px; border-radius: 8px; background: rgba(30,20,10,.7); border: 1px solid var(--wood-border); color: var(--parchment); font-size: 12px; z-index: 5; }
-  #hotbar { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); display: none; gap: 4px; z-index: 6; padding: 5px; background: rgba(30,20,10,.75); border: 2px solid var(--wood-border); border-radius: 10px; }
-  .hotbar-slot { width: 44px; height: 44px; border-radius: 6px; border: 2px solid var(--wood-light); background: rgba(0,0,0,.4); color: var(--parchment); font-size: 20px; display: flex; align-items: center; justify-content: center; position: relative; cursor: pointer; }
-  .hotbar-slot.selected { border-color: var(--gold); background: rgba(224,176,96,.3); transform: translateY(-3px); }
-  .hotbar-slot .num { position: absolute; top: 1px; left: 3px; font-size: 9px; font-weight: 700; }
-  .hotbar-slot .cnt { position: absolute; bottom: 1px; right: 3px; font-size: 10px; font-weight: 700; color: var(--gold-bright); }
+  /* Меню паузы */
+  #pauseMenu {
+    background: rgba(5, 5, 5, 0.9);
+    align-items: center;
+    padding: 0;
+    border-left: none;
+  }
+  .pause-box {
+    background: rgba(15, 15, 15, 0.95);
+    border: 1px solid var(--pz-border);
+    padding: 40px;
+    width: 400px;
+    max-width: 90vw;
+    display: flex; flex-direction: column;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+  }
 
-  #action { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); padding: 10px 20px; border-radius: 20px; border: 2px solid var(--wood-border); background: rgba(30,20,10,.9); color: var(--parchment); font-size: 14px; font-weight: 700; display: none; z-index: 7; cursor: pointer; }
-  #jumpBtn, #diveBtn { position: fixed; right: 20px; width: 60px; height: 60px; border-radius: 50%; border: 2px solid var(--wood-border); background: rgba(30,20,10,.7); color: var(--parchment); font-size: 24px; display: none; align-items: center; justify-content: center; z-index: 6; }
-  #jumpBtn { bottom: 90px; } #diveBtn { bottom: 160px; border-color: #4fc3f7; }
-  #stick { position: fixed; left: 20px; bottom: 20px; width: 120px; height: 120px; border-radius: 50%; background: rgba(30,20,10,.35); border: 2px solid var(--wood-border); display: none; z-index: 5; }
-  #knob { position: absolute; left: 50%; top: 50%; width: 50px; height: 50px; margin: -25px 0 0 -25px; border-radius: 50%; background: radial-gradient(circle at 30% 30%, var(--parchment), var(--wood-border)); }
+  /* Панель настроек */
+  .settings-panel {
+    background: rgba(0,0,0,0.5);
+    border: 1px solid var(--pz-border);
+    padding: 15px;
+    margin-bottom: 20px;
+    width: 100%;
+  }
+  .settings-panel h3 {
+    color: var(--pz-highlight);
+    font-size: 14px;
+    margin: 0 0 15px 0;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--pz-border);
+    padding-bottom: 5px;
+  }
+  .setting-row {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 10px; font-size: 14px; color: var(--pz-text);
+  }
+  .setting-row input[type="checkbox"] { accent-color: var(--pz-highlight); }
+  .setting-row select {
+    background: var(--pz-bg); color: var(--pz-text);
+    border: 1px solid var(--pz-border); font-family: var(--pz-font);
+    padding: 2px 5px; outline: none;
+  }
 
-  #toast { position: fixed; top: 40%; left: 50%; transform: translate(-50%,-50%); padding: 10px 20px; border-radius: 8px; background: rgba(30,20,10,.92); border: 2px solid var(--gold); color: var(--parchment); font-size: 14px; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 20; }
+  /* Игровой HUD */
+  #clockBadge {
+    position: fixed; top: 15px; left: 15px;
+    display: none; gap: 8px;
+    color: var(--pz-text);
+    font-size: 14px; font-weight: bold;
+    z-index: 5; text-transform: uppercase;
+    text-shadow: 1px 1px 0 #000;
+  }
+  
+  #menuBtns { position: fixed; top: 15px; right: 60px; display: none; gap: 5px; z-index: 6; }
+  .icon-btn {
+    width: 40px; height: 40px;
+    background: var(--pz-panel);
+    border: 1px solid var(--pz-border);
+    color: var(--pz-text); font-size: 18px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .icon-btn:hover { border-color: var(--pz-highlight); color: var(--pz-highlight); }
+  
+  #pauseBtn {
+    position: fixed; top: 15px; right: 15px;
+    width: 40px; height: 40px;
+    background: var(--pz-panel); border: 1px solid var(--pz-border);
+    color: var(--pz-text); font-size: 18px; z-index: 100; cursor: pointer; display: none;
+  }
+  #pauseBtn:hover { border-color: var(--pz-highlight); }
+
+  #hotbar {
+    position: fixed; bottom: 15px; left: 50%; transform: translateX(-50%);
+    display: none; gap: 2px; z-index: 6; padding: 2px;
+    background: var(--pz-panel); border: 1px solid var(--pz-border);
+  }
+  .hotbar-slot {
+    width: 44px; height: 44px;
+    background: rgba(0,0,0,0.8);
+    border: 1px solid var(--pz-border);
+    color: var(--pz-text); font-size: 20px;
+    display: flex; align-items: center; justify-content: center;
+    position: relative; cursor: pointer;
+  }
+  .hotbar-slot.selected { border-color: var(--pz-highlight); background: rgba(184, 199, 161, 0.1); }
+  .hotbar-slot .num { position: absolute; top: 2px; left: 4px; font-size: 10px; color: var(--pz-text-dark); }
+  .hotbar-slot .cnt { position: absolute; bottom: 2px; right: 4px; font-size: 12px; font-weight: bold; color: var(--pz-highlight); }
+
+  #action {
+    position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+    padding: 10px 20px; border: 1px solid var(--pz-border);
+    background: var(--pz-panel); color: var(--pz-highlight);
+    font-family: var(--pz-font); font-size: 14px; font-weight: bold; text-transform: uppercase;
+    display: none; z-index: 7; cursor: pointer;
+  }
+  #action:hover { border-color: var(--pz-highlight); background: #222; }
+
+  #jumpBtn, #diveBtn {
+    position: fixed; right: 20px; width: 60px; height: 60px;
+    border-radius: 50%; border: 2px solid var(--pz-border);
+    background: rgba(15, 15, 15, 0.8); color: var(--pz-text);
+    font-size: 24px; display: none; align-items: center; justify-content: center; z-index: 6;
+  }
+  #jumpBtn { bottom: 90px; } 
+  #diveBtn { bottom: 160px; border-color: #4fc3f7; }
+
+  #stick {
+    position: fixed; left: 20px; bottom: 20px; width: 120px; height: 120px;
+    border-radius: 50%; background: rgba(15,15,15,0.5); border: 2px solid var(--pz-border);
+    display: none; z-index: 5;
+  }
+  #knob {
+    position: absolute; left: 50%; top: 50%; width: 50px; height: 50px;
+    margin: -25px 0 0 -25px; border-radius: 50%;
+    background: var(--pz-text-dark);
+  }
+
+  #toast {
+    position: fixed; top: 20%; left: 50%; transform: translate(-50%,-50%);
+    padding: 8px 15px; background: rgba(0,0,0,0.8);
+    border: 1px solid var(--pz-border); color: var(--pz-highlight);
+    font-size: 14px; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 20;
+  }
 </style>
 </head>
 <body>
 
-<div id="versionLabel">v1.01</div>
-
-<!-- ГЛАВНОЕ МЕНЮ -->
+<!-- ГЛАВНОЕ МЕНЮ (Стиль PZ) -->
 <div id="mainMenu" class="menu-screen active">
-  <h1>CUBE_QUEST</h1>
+  <h1 class="menu-title">Cube_Quest</h1>
+  <div class="menu-subtitle">Выживание в открытом мире</div>
+  
   <button class="menu-btn" id="btnNewGame">Новая игра</button>
   <button class="menu-btn" id="btnContinue" disabled>Продолжить</button>
+  
+  <!-- Версия перенесена сюда -->
+  <div id="versionLabel">v1.05</div>
 </div>
 
-<!-- МЕНЮ ПАУЗЫ -->
+<!-- МЕНЮ ПАУЗЫ (Стиль PZ) -->
 <div id="pauseMenu" class="menu-screen">
-  <h1 style="font-size: 36px; margin-bottom: 15px;">ПАУЗА</h1>
-  <div class="settings-panel">
-    <h3>Оптимизация</h3>
-    <div class="setting-row">
-      <span>Тени (FPS)</span>
-      <input type="checkbox" id="setShadows" checked>
-    </div>
-    <div class="setting-row">
-      <span>Туман (Дальность)</span>
-      <select id="setFog">
-        <option value="0.003">Близко (Быстро)</option>
-        <option value="0.0015" selected>Средне</option>
-        <option value="0.0008">Далеко (Тяжело)</option>
-      </select>
+  <div class="pause-box">
+    <h1 class="menu-title" style="font-size: 32px; margin-bottom: 20px;">Пауза</h1>
+    
+    <button class="menu-btn" id="btnResume">Продолжить игру</button>
+    <button class="menu-btn" id="btnSave">Сохранить игру</button>
+    <button class="menu-btn" id="btnExit">Выйти в главное меню</button>
+
+    <div class="settings-panel" style="margin-top: 30px;">
+      <h3>Настройки</h3>
+      <div class="setting-row">
+        <span>Тени</span>
+        <input type="checkbox" id="setShadows" checked>
+      </div>
+      <div class="setting-row">
+        <span>Дальность</span>
+        <select id="setFog">
+          <option value="0.004">Близко</option>
+          <option value="0.002" selected>Средне</option>
+          <option value="0.001">Далеко</option>
+        </select>
+      </div>
     </div>
   </div>
-  <button class="menu-btn" id="btnResume">Продолжить</button>
-  <button class="menu-btn" id="btnSave">Сохранить</button>
-  <button class="menu-btn" id="btnExit">В главное меню</button>
 </div>
 
-<!-- ИНТЕРФЕЙС ИГРЫ -->
-<div id="clockBadge">
-  <span id="clockIcon">☀️</span>
-  <span id="clockTime">06:00</span>
-</div>
-
+<!-- HUD -->
+<div id="clockBadge"><span>☀️</span><span id="clockTime">06:00</span></div>
 <button id="pauseBtn">⏸</button>
-
 <div id="menuBtns">
-  <button class="icon-btn" id="openInv">🎒</button>
   <button class="icon-btn" id="openCraft">⚒</button>
 </div>
-
 <div id="hotbar"></div>
-<button id="action">Подобрать</button>
+<button id="action">Действие</button>
 <button id="jumpBtn">↑</button>
-<button id="diveBtn">↓</button>
 <div id="toast"></div>
 <div id="stick"><div id="knob"></div></div>
 
@@ -124,15 +284,16 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-/* ==================== ОПТИМИЗИРОВАННЫЕ НАСТРОЙКИ ==================== */
-const WORLD_SIZE = 2000; // Уменьшено с 2520
-const TERRAIN_SEG = 100; // Снижено с 200 (экономия полигонов)
-const TREE_COUNT = 500;  // Снижено с 1000
-const ROCK_COUNT = 300;
-const GRASS_COUNT = 2000; // Снижено в 5 раз (было 10к)
-const SPEED = 9; const ACCEL = 14;
-const WATER_LEVEL = -2.5; const GRAVITY = 25; const JUMP_SPEED = 9;
-const DAY_CYCLE = 720; const INV_SLOTS = 24; const HOTBAR_SLOTS = 9;
+/* ==================== НАСТРОЙКИ ==================== */
+const WORLD_SIZE = 2000;
+const TERRAIN_SEG = 120;
+const TREE_COUNT = 800;
+const ROCK_COUNT = 400;
+const BRANCH_COUNT = 300;
+const GRASS_COUNT = 5000;
+const SPEED = 9; const GRAVITY = 25; const JUMP_SPEED = 9;
+const WATER_LEVEL = -1.5; const DAY_CYCLE = 720;
+const INV_SLOTS = 20; const HOTBAR_SLOTS = 9;
 
 let gameState = 'menu'; 
 const scene = new THREE.Scene();
@@ -150,14 +311,15 @@ let timeOfDay = 180;
 let inventory = new Array(INV_SLOTS).fill(null);
 let hotbar = new Array(HOTBAR_SLOTS).fill(null);
 let selectedSlot = -1;
+let tools = { stoneAxe: false, torch: false };
 
 const velocity = new THREE.Vector3();
 let vy = 0, onGround = true;
 let camYaw = 0, camPitch = 0.4, camDist = 8;
 let jumpRequested = false;
 
-let sun, hemi;
-let worldObjects = []; // Для сбора ресурсов
+let sun, hemi, waterMaterial;
+let interactables = [];
 let currentAction = null;
 
 /* ==================== ИНИЦИАЛИЗАЦИЯ ==================== */
@@ -166,11 +328,10 @@ function initEngine() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
   document.body.appendChild(renderer.domElement);
 
   scene.background = new THREE.Color(0xa8c8d8);
-  scene.fog = new THREE.FogExp2(0xa8c8d8, 0.0015); // Оптимизированный туман
+  scene.fog = new THREE.FogExp2(0xa8c8d8, 0.002);
 
   hemi = new THREE.HemisphereLight(0xd8ecff, 0x445533, 0.9);
   scene.add(hemi);
@@ -178,10 +339,7 @@ function initEngine() {
   sun = new THREE.DirectionalLight(0xfff2d0, 2.2);
   sun.position.set(40, 60, 30);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(1024, 1024); // Уменьшено с 2048 для FPS
-  sun.shadow.camera.left = -40; sun.shadow.camera.right = 40;
-  sun.shadow.camera.top = 40; sun.shadow.camera.bottom = -40;
-  sun.shadow.bias = -0.001;
+  sun.shadow.mapSize.set(1024, 1024);
   scene.add(sun); scene.add(sun.target);
 
   window.addEventListener('resize', () => {
@@ -191,48 +349,134 @@ function initEngine() {
   });
 }
 
-/* ==================== ГЕНЕРАЦИЯ МИРА ==================== */
+/* ==================== РЕЛЬЕФ И ГЕНЕРАЦИЯ ==================== */
+function getTerrainHeight(x, z) {
+  const h = Math.sin(x * 0.005) * Math.cos(z * 0.005) * 15 + Math.sin(x * 0.02) * 2;
+  return h > -3 ? h : -3;
+}
+
 function generateWorld() {
-  // Земля
+  const dummy = new THREE.Object3D();
+
   const groundGeo = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE, TERRAIN_SEG, TERRAIN_SEG);
   groundGeo.rotateX(-Math.PI / 2);
-  const groundMat = new THREE.MeshStandardMaterial({ color: 0x74a344, roughness: 0.9 });
+  const pos = groundGeo.attributes.position;
+  const colors = [];
+  const cGrass = new THREE.Color(0x74a344);
+  const cSand = new THREE.Color(0xe0c890);
+
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), z = pos.getZ(i);
+    const h = getTerrainHeight(x, z);
+    pos.setY(i, h);
+    if (h < WATER_LEVEL + 1) colors.push(cSand.r, cSand.g, cSand.b);
+    else colors.push(cGrass.r, cGrass.g, cGrass.b);
+  }
+  groundGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  groundGeo.computeVertexNormals();
+  
+  const groundMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 });
   const ground = new THREE.Mesh(groundGeo, groundMat);
   ground.receiveShadow = true;
   scene.add(ground);
 
-  // Вода (Оптимизированная, без тяжелых шейдеров)
-  const waterGeo = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE);
+  const waterGeo = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE, 64, 64);
   waterGeo.rotateX(-Math.PI / 2);
-  const waterMat = new THREE.MeshStandardMaterial({ color: 0x2a8ab0, transparent: true, opacity: 0.7 });
-  const water = new THREE.Mesh(waterGeo, waterMat);
+  waterMaterial = new THREE.MeshStandardMaterial({ color: 0x2a8ab0, transparent: true, opacity: 0.8, roughness: 0.1, metalness: 0.5 });
+
+  waterMaterial.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = { value: 0 };
+    shader.vertexShader = `uniform float uTime;\n` + shader.vertexShader;
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <begin_vertex>',
+      `
+      vec3 transformed = vec3(position);
+      float wave = sin(position.x * 0.1 + uTime * 1.5) * 0.3 + cos(position.z * 0.15 + uTime) * 0.2;
+      transformed.y += wave; 
+      `
+    );
+    waterMaterial.userData.shader = shader;
+  };
+
+  const water = new THREE.Mesh(waterGeo, waterMaterial);
   water.position.y = WATER_LEVEL;
   scene.add(water);
 
-  // Деревья (InstancedMesh для оптимизации)
-  const treeGeo = new THREE.ConeGeometry(1, 3, 5);
-  const treeMat = new THREE.MeshStandardMaterial({ color: 0x2d6b3a, flatShading: true });
-  const trees = new THREE.InstancedMesh(treeGeo, treeMat, TREE_COUNT);
-  trees.castShadow = true;
-  const dummy = new THREE.Object3D();
+  // Деревья
+  const trunkGeo = new THREE.CylinderGeometry(0.2, 0.3, 2, 6);
+  const leafGeo = new THREE.ConeGeometry(1.5, 3, 6);
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a3a1e, flatShading: true });
+  const leafMat = new THREE.MeshStandardMaterial({ color: 0x2d6b3a, flatShading: true });
   
-  for(let i=0; i<TREE_COUNT; i++) {
-    const x = (Math.random()-0.5)*WORLD_SIZE*0.8;
-    const z = (Math.random()-0.5)*WORLD_SIZE*0.8;
-    dummy.position.set(x, 1.5, z);
-    dummy.rotation.set(0, Math.random()*Math.PI, 0);
-    dummy.updateMatrix();
-    trees.setMatrixAt(i, dummy.matrix);
-    worldObjects.push({ type: 'tree', x, z, obj: dummy.clone() }); // Для сбора
-  }
-  scene.add(trees);
+  const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, TREE_COUNT);
+  const leaves = new THREE.InstancedMesh(leafGeo, leafMat, TREE_COUNT);
+  trunks.castShadow = true; leaves.castShadow = true;
 
-  // Трава (Через InstancedMesh)
-  const grassGeo = new THREE.ConeGeometry(0.05, 0.5, 3);
+  for (let i = 0; i < TREE_COUNT; i++) {
+    const x = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
+    const z = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
+    const h = getTerrainHeight(x, z);
+    if (h < WATER_LEVEL + 1) continue;
+
+    dummy.position.set(x, h + 1, z);
+    dummy.rotation.set(0, Math.random() * Math.PI, 0);
+    dummy.updateMatrix();
+    trunks.setMatrixAt(i, dummy.matrix);
+
+    dummy.position.set(x, h + 3, z);
+    dummy.updateMatrix();
+    leaves.setMatrixAt(i, dummy.matrix);
+
+    interactables.push({ type: 'tree', mesh: leaves, idx: i, pos: new THREE.Vector3(x, h, z), hp: 3, active: true });
+  }
+  scene.add(trunks, leaves);
+
+  // Камни и Ветки
+  const rockGeo = new THREE.DodecahedronGeometry(0.5);
+  const rockMat = new THREE.MeshStandardMaterial({ color: 0x888888, flatShading: true });
+  const rocks = new THREE.InstancedMesh(rockGeo, rockMat, ROCK_COUNT);
+
+  for (let i = 0; i < ROCK_COUNT; i++) {
+    const x = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
+    const z = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
+    const h = getTerrainHeight(x, z);
+    if (h < WATER_LEVEL) continue;
+    dummy.position.set(x, h + 0.3, z);
+    dummy.rotation.set(Math.random(), Math.random(), Math.random());
+    dummy.updateMatrix();
+    rocks.setMatrixAt(i, dummy.matrix);
+    interactables.push({ type: 'rock', mesh: rocks, idx: i, pos: new THREE.Vector3(x, h, z), active: true });
+  }
+  scene.add(rocks);
+
+  const branchGeo = new THREE.CylinderGeometry(0.05, 0.05, 1);
+  const branchMat = new THREE.MeshStandardMaterial({ color: 0x4a2e15 });
+  const branches = new THREE.InstancedMesh(branchGeo, branchMat, BRANCH_COUNT);
+
+  for (let i = 0; i < BRANCH_COUNT; i++) {
+    const x = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
+    const z = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
+    const h = getTerrainHeight(x, z);
+    if (h < WATER_LEVEL) continue;
+    dummy.position.set(x, h + 0.05, z);
+    dummy.rotation.set(Math.PI / 2, Math.random() * Math.PI, 0);
+    dummy.updateMatrix();
+    branches.setMatrixAt(i, dummy.matrix);
+    interactables.push({ type: 'branch', mesh: branches, idx: i, pos: new THREE.Vector3(x, h, z), active: true });
+  }
+  scene.add(branches);
+
+  // Трава
+  const grassGeo = new THREE.ConeGeometry(0.05, 0.4, 3);
   const grassMat = new THREE.MeshStandardMaterial({ color: 0x5a8a2a, flatShading: true });
   const grass = new THREE.InstancedMesh(grassGeo, grassMat, GRASS_COUNT);
-  for(let i=0; i<GRASS_COUNT; i++) {
-    dummy.position.set((Math.random()-0.5)*WORLD_SIZE*0.9, 0.25, (Math.random()-0.5)*WORLD_SIZE*0.9);
+  for (let i = 0; i < GRASS_COUNT; i++) {
+    const x = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
+    const z = (Math.random() - 0.5) * WORLD_SIZE * 0.9;
+    const h = getTerrainHeight(x, z);
+    if (h < WATER_LEVEL + 0.5) continue;
+    dummy.position.set(x, h + 0.2, z);
+    dummy.rotation.set(0, Math.random() * Math.PI, 0);
     dummy.updateMatrix();
     grass.setMatrixAt(i, dummy.matrix);
   }
@@ -246,26 +490,20 @@ function loadPlayer() {
     loader.load('./Soldier.glb', (gltf) => {
       playerModel = gltf.scene;
       playerModel.traverse(o => { if (o.isMesh) o.castShadow = true; });
-      playerModel.scale.set(1.5, 1.5, 1.5);
+      playerModel.scale.set(1.2, 1.2, 1.2);
       player.add(playerModel);
       scene.add(player);
 
       mixer = new THREE.AnimationMixer(playerModel);
       gltf.animations.forEach(clip => {
-        // Используем стандартные названия из Soldier.glb
         if (clip.name.includes('Idle')) actions['Idle'] = mixer.clipAction(clip);
         if (clip.name.includes('Walk')) actions['Walk'] = mixer.clipAction(clip);
         if (clip.name.includes('Run')) actions['Run'] = mixer.clipAction(clip);
         if (clip.name.includes('Jump')) actions['Jump'] = mixer.clipAction(clip);
       });
-
-      if (actions['Idle']) {
-        activeAction = actions['Idle'];
-        activeAction.play();
-      }
+      if (actions['Idle']) { activeAction = actions['Idle']; activeAction.play(); }
       resolve();
-    }, undefined, (err) => {
-      console.warn("Soldier.glb не найден, используется заглушка");
+    }, undefined, () => {
       const g = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 1, 4, 8), new THREE.MeshStandardMaterial({color: 0x8F6E43}));
       g.position.y = 1; g.castShadow = true;
       playerModel = g; player.add(playerModel); scene.add(player);
@@ -283,82 +521,67 @@ function fadeToAction(name, duration = 0.2) {
   activeAction = next;
 }
 
-/* ==================== СИСТЕМА СОХРАНЕНИЙ ==================== */
+/* ==================== СОХРАНЕНИЯ ==================== */
 function saveGame() {
-  const saveData = {
-    pos: player.position.toArray(),
-    camYaw: camYaw,
-    timeOfDay: timeOfDay,
-    inventory: inventory,
-    hotbar: hotbar,
-    selectedSlot: selectedSlot
-  };
-  localStorage.setItem('cubeQuest_save', JSON.stringify(saveData));
-  toast('Игра сохранена!');
+  const data = { pos: player.position.toArray(), camYaw, timeOfDay, inventory, hotbar, selectedSlot, tools };
+  localStorage.setItem('cubeQuest_save_v5', JSON.stringify(data));
+  toast('Игра сохранена');
   document.getElementById('btnContinue').disabled = false;
 }
 
 function loadGame() {
-  const data = JSON.parse(localStorage.getItem('cubeQuest_save'));
+  const data = JSON.parse(localStorage.getItem('cubeQuest_save_v5'));
   if (!data) return false;
-
   player.position.fromArray(data.pos);
-  camYaw = data.camYaw;
-  timeOfDay = data.timeOfDay;
-  inventory = data.inventory || new Array(INV_SLOTS).fill(null);
-  hotbar = data.hotbar || new Array(HOTBAR_SLOTS).fill(null);
-  selectedSlot = data.selectedSlot || -1;
-  
+  camYaw = data.camYaw; timeOfDay = data.timeOfDay;
+  inventory = data.inventory; hotbar = data.hotbar; selectedSlot = data.selectedSlot; tools = data.tools;
   updateHotbarUI();
   return true;
 }
 
-/* ==================== ИГРОВАЯ ЛОГИКА ==================== */
+/* ==================== ЛОГИКА ==================== */
 function updatePlayer(dt) {
-  // Ввод
   let inX = 0, inZ = 0;
   if (keys.has('KeyW') || keys.has('ArrowUp')) inZ -= 1;
   if (keys.has('KeyS') || keys.has('ArrowDown')) inZ += 1;
   if (keys.has('KeyA') || keys.has('ArrowLeft')) inX -= 1;
   if (keys.has('KeyD') || keys.has('ArrowRight')) inX += 1;
-  
-  // Джойстик (заглушка, если не трогаем)
   if (joyVec.lengthSq() > 0.1) { inX = joyVec.x; inZ = joyVec.y; }
 
   const len = Math.hypot(inX, inZ);
   if (len > 1) { inX /= len; inZ /= len; }
 
-  // Движение относительно камеры
   const fwdX = -Math.sin(camYaw); const fwdZ = -Math.cos(camYaw);
   const rightX = Math.cos(camYaw); const rightZ = -Math.sin(camYaw);
   const moveX = fwdX * (-inZ) + rightX * inX;
   const moveZ = fwdZ * (-inZ) + rightZ * inX;
 
-  const t = 1 - Math.exp(-ACCEL * dt);
+  const t = 1 - Math.exp(-14 * dt);
   velocity.x += (moveX * SPEED - velocity.x) * t;
   velocity.z += (moveZ * SPEED - velocity.z) * t;
-  
   player.position.x += velocity.x * dt;
   player.position.z += velocity.z * dt;
 
-  // Прыжок
-  if (jumpRequested && onGround) {
-    vy = JUMP_SPEED; onGround = false; jumpRequested = false;
-  }
+  const half = WORLD_SIZE / 2 - 10;
+  player.position.x = Math.max(-half, Math.min(half, player.position.x));
+  player.position.z = Math.max(-half, Math.min(half, player.position.z));
+
+  const groundH = getTerrainHeight(player.position.x, player.position.z);
+  if (jumpRequested && onGround) { vy = JUMP_SPEED; onGround = false; jumpRequested = false; }
   if (!onGround) {
     vy -= GRAVITY * dt;
     player.position.y += vy * dt;
-    if (player.position.y <= 0) { player.position.y = 0; vy = 0; onGround = true; }
+    if (player.position.y <= groundH) { player.position.y = groundH; vy = 0; onGround = true; }
+  } else {
+    player.position.y = groundH;
   }
 
-  // Поворот модели
   const sp = Math.hypot(velocity.x, velocity.z);
   if (sp > 0.5) {
     const targetRot = Math.atan2(velocity.x, velocity.z);
     player.rotation.y += (targetRot - player.rotation.y) * 10 * dt;
   }
 
-  // Анимация
   if (mixer) {
     if (!onGround) fadeToAction('Jump');
     else if (sp > SPEED * 0.7) fadeToAction('Run');
@@ -374,17 +597,15 @@ function updateCamera(dt) {
     Math.sin(camPitch),
     Math.cos(camYaw) * Math.cos(camPitch)
   ).multiplyScalar(camDist);
-
   const camDesired = player.position.clone().add(offset);
   camDesired.y += 1.2;
   camera.position.lerp(camDesired, 1 - Math.exp(-10 * dt));
   camera.lookAt(player.position.x, player.position.y + 1.2, player.position.z);
 }
 
-function updateDayNight(dt) {
+function updateDayNight(dt, elapsed) {
   timeOfDay = (timeOfDay + dt) % DAY_CYCLE;
   const progress = timeOfDay / DAY_CYCLE;
-  
   const angle = progress * Math.PI * 2 - Math.PI / 2;
   const sunHeight = Math.sin(angle);
   
@@ -400,9 +621,7 @@ function updateDayNight(dt) {
   } else if (sunHeight <= -0.1) {
     skyColor = new THREE.Color(0x0a1020);
     hemi.intensity = 0.15;
-  } else {
-    hemi.intensity = 0.9;
-  }
+  } else hemi.intensity = 0.9;
   
   scene.background = skyColor;
   scene.fog.color = skyColor;
@@ -410,9 +629,97 @@ function updateDayNight(dt) {
   const hours = Math.floor(progress * 24);
   const mins = Math.floor((progress * 24 * 60) % 60);
   document.getElementById('clockTime').textContent = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+
+  if (waterMaterial && waterMaterial.userData.shader) {
+    waterMaterial.userData.shader.uniforms.uTime.value = elapsed;
+  }
 }
 
-/* ==================== UI ЛОГИКА ==================== */
+function checkInteractables() {
+  let closest = null; let minDist = 3.0;
+  for (let i = 0; i < interactables.length; i++) {
+    const obj = interactables[i];
+    if (!obj.active) continue;
+    const dist = player.position.distanceTo(obj.pos);
+    if (dist < minDist) { minDist = dist; closest = obj; }
+  }
+
+  const actionBtn = document.getElementById('action');
+  if (closest) {
+    currentAction = closest;
+    if (closest.type === 'tree') {
+      actionBtn.textContent = tools.stoneAxe ? 'Рубить дерево' : 'Нужен топор';
+      actionBtn.style.display = 'block';
+    } else {
+      actionBtn.textContent = 'Подобрать';
+      actionBtn.style.display = 'block';
+    }
+  } else {
+    currentAction = null;
+    actionBtn.style.display = 'none';
+  }
+}
+
+function doAction() {
+  if (!currentAction) return;
+  const obj = currentAction;
+
+  if (obj.type === 'branch' || obj.type === 'rock') {
+    if (obj.type === 'branch') { addItem('wood', 1); toast('+ Дерево'); }
+    else { addItem('stone', 2); toast('+ Камень'); }
+    obj.active = false;
+    obj.mesh.setMatrixAt(obj.idx, new THREE.Matrix4().makeScale(0,0,0));
+    obj.mesh.instanceMatrix.needsUpdate = true;
+  } else if (obj.type === 'tree') {
+    if (!tools.stoneAxe) return toast('Нужен топор');
+    obj.hp -= 1;
+    if (obj.hp <= 0) {
+      addItem('wood', 3); toast('+ 3 Дерева');
+      obj.active = false;
+      obj.mesh.setMatrixAt(obj.idx, new THREE.Matrix4().makeScale(0,0,0));
+      obj.mesh.instanceMatrix.needsUpdate = true;
+    } else { toast('Удар! Осталось: ' + obj.hp); }
+  }
+  checkInteractables();
+}
+
+/* ==================== ИНВЕНТАРЬ ==================== */
+const ICONS = { wood: '🪵', stone: '🪨', axe: '🪓' };
+
+function addItem(type, count) {
+  for (let i = 0; i < HOTBAR_SLOTS; i++) {
+    if (hotbar[i] && hotbar[i].type === type) { hotbar[i].count += count; updateHotbarUI(); return; }
+  }
+  for (let i = 0; i < HOTBAR_SLOTS; i++) {
+    if (!hotbar[i]) { hotbar[i] = { type, count }; updateHotbarUI(); return; }
+  }
+}
+
+function getItemsCount(type) {
+  let c = 0;
+  hotbar.forEach(s => { if(s && s.type===type) c+=s.count; });
+  return c;
+}
+
+function removeItem(type, count) {
+  for (let i = 0; i < hotbar.length; i++) {
+    if (hotbar[i] && hotbar[i].type === type) {
+      const take = Math.min(count, hotbar[i].count);
+      hotbar[i].count -= take; if (hotbar[i].count <= 0) hotbar[i] = null; count -= take;
+      if (count <= 0) break;
+    }
+  }
+  updateHotbarUI();
+}
+
+function craftAxe() {
+  if (tools.stoneAxe) return toast('Уже есть');
+  if (getItemsCount('wood') >= 2 && getItemsCount('stone') >= 2) {
+    removeItem('wood', 2); removeItem('stone', 2);
+    tools.stoneAxe = true; toast('Топор создан!'); updateHotbarUI();
+  } else toast('Нужно 2 дерева и 2 камня');
+}
+
 function updateHotbarUI() {
   const el = document.getElementById('hotbar');
   el.innerHTML = '';
@@ -421,32 +728,42 @@ function updateHotbarUI() {
     slot.className = 'hotbar-slot' + (i === selectedSlot ? ' selected' : '');
     let inner = `<span class="num">${i+1}</span>`;
     if (hotbar[i]) {
-      inner += '📦';
-      inner += `<span class="cnt">${hotbar[i].count || 1}</span>`;
+      inner += ICONS[hotbar[i].type] || '📦';
+      inner += `<span class="cnt">${hotbar[i].count}</span>`;
     }
     slot.innerHTML = inner;
-    slot.onclick = () => { selectedSlot = i; updateHotbarUI(); };
     el.appendChild(slot);
   }
 }
 
-function toast(msg) {
-  const el = document.getElementById('toast');
-  el.textContent = msg; el.style.opacity = '1';
-  setTimeout(() => el.style.opacity = '0', 2000);
-}
-
-/* ==================== УПРАВЛЕНИЕ ИГРОЙ ==================== */
+/* ==================== УПРАВЛЕНИЕ И ПОЛНЫЙ ЭКРАН ==================== */
 function startGame(isNew) {
   if (isNew) {
-    localStorage.removeItem('cubeQuest_save');
-    player.position.set(0, 5, 0);
-    timeOfDay = 180;
-    inventory.fill(null); hotbar.fill(null); selectedSlot = -1;
+    localStorage.removeItem('cubeQuest_save_v5');
+    player.position.set(0, getTerrainHeight(0,0), 0);
+    timeOfDay = 180; inventory.fill(null); hotbar.fill(null); selectedSlot = -1;
+    tools = { stoneAxe: false, torch: false };
   } else {
-    if(!loadGame()) return alert('Сохранение повреждено');
+    if(!loadGame()) return alert('Сохранение не найдено');
   }
   updateHotbarUI();
+  
+  // === ЗАПРОС ПОЛНОЭКРАННОГО РЕЖИМА ===
+  // Браузеры разрешают это только после клика пользователя
+  try {
+    if (document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen();
+    } else if (document.documentElement.webkitRequestFullscreen) {
+      document.documentElement.webkitRequestFullscreen();
+    }
+    
+    // Пытаемся заблокировать ландшафтную ориентацию
+    if (screen.orientation && screen.orientation.lock) {
+      screen.orientation.lock('landscape').catch(e => console.log("Orientation lock failed", e));
+    }
+  } catch (err) {
+    console.log("Fullscreen error:", err);
+  }
 
   document.getElementById('mainMenu').classList.remove('active');
   document.getElementById('pauseMenu').classList.remove('active');
@@ -455,9 +772,9 @@ function startGame(isNew) {
   document.getElementById('hotbar').style.display = 'flex';
   document.getElementById('jumpBtn').style.display = 'flex';
   document.getElementById('pauseBtn').style.display = 'block';
-
-  gameState = 'playing';
-  clock.getDelta(); // Сброс таймера
+  
+  gameState = 'playing'; 
+  clock.getDelta();
 }
 
 function pauseGame() {
@@ -475,10 +792,10 @@ function exitToMenu() {
   document.getElementById('hotbar').style.display = 'none';
   document.getElementById('jumpBtn').style.display = 'none';
   document.getElementById('pauseBtn').style.display = 'none';
-  document.getElementById('btnContinue').disabled = !localStorage.getItem('cubeQuest_save');
+  document.getElementById('action').style.display = 'none';
+  document.getElementById('btnContinue').disabled = !localStorage.getItem('cubeQuest_save_v5');
 }
 
-/* ==================== ВВОД ДАННЫХ ==================== */
 const keys = new Set();
 let joyVec = new THREE.Vector2(0, 0);
 let camTouchId = null, camTouchStart = { x: 0, y: 0 };
@@ -486,26 +803,22 @@ let camTouchId = null, camTouchStart = { x: 0, y: 0 };
 window.addEventListener('keydown', e => {
   keys.add(e.code);
   if (e.code === 'Space' && gameState === 'playing') jumpRequested = true;
+  if (e.code === 'KeyE' && gameState === 'playing') doAction();
   if (e.code === 'Escape' && gameState === 'playing') pauseGame();
 });
 window.addEventListener('keyup', e => keys.delete(e.code));
 
-// Сенсорное управление (упрощенное)
 const stick = document.getElementById('stick');
 const knob = document.getElementById('knob');
 
 window.addEventListener('pointerdown', e => {
   if (gameState !== 'playing') return;
   if (e.clientX < window.innerWidth * 0.4) {
-    // Левая часть - джойстик
     if (e.target.closest('button')) return;
     stick.style.display = 'block';
     stick.style.left = (e.clientX - 60) + 'px';
     stick.style.top = (e.clientY - 60) + 'px';
-    stick.style.bottom = 'auto';
-    e.target.setPointerCapture(e.pointerId);
   } else {
-    // Правая часть - камера
     if (e.target.closest('button, #hotbar')) return;
     camTouchId = e.pointerId;
     camTouchStart = { x: e.clientX, y: e.clientY };
@@ -537,14 +850,15 @@ window.addEventListener('pointerup', e => {
 });
 
 document.getElementById('jumpBtn').addEventListener('pointerdown', () => jumpRequested = true);
+document.getElementById('action').addEventListener('click', doAction);
 document.getElementById('pauseBtn').addEventListener('click', pauseGame);
 document.getElementById('btnNewGame').addEventListener('click', () => startGame(true));
 document.getElementById('btnContinue').addEventListener('click', () => startGame(false));
 document.getElementById('btnResume').addEventListener('click', () => { gameState='playing'; document.getElementById('pauseMenu').classList.remove('active'); clock.getDelta(); });
 document.getElementById('btnSave').addEventListener('click', saveGame);
 document.getElementById('btnExit').addEventListener('click', () => { saveGame(); exitToMenu(); });
+document.getElementById('openCraft').addEventListener('click', craftAxe);
 
-/* ==================== НАСТРОЙКИ ==================== */
 document.getElementById('setShadows').addEventListener('change', (e) => {
   renderer.shadowMap.enabled = e.target.checked;
   scene.traverse((child) => { if (child.isMesh) child.material.needsUpdate = true; });
@@ -557,20 +871,28 @@ document.getElementById('setFog').addEventListener('change', (e) => {
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
+  const elapsed = clock.getElapsedTime();
 
   if (gameState === 'playing') {
     updatePlayer(dt);
     updateCamera(dt);
-    updateDayNight(dt);
+    updateDayNight(dt, elapsed);
+    checkInteractables();
   }
   renderer.render(scene, camera);
+}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.style.opacity = '1';
+  setTimeout(() => el.style.opacity = '0', 2000);
 }
 
 /* ==================== ЗАПУСК ==================== */
 initEngine();
 generateWorld();
 loadPlayer().then(() => {
-  document.getElementById('btnContinue').disabled = !localStorage.getItem('cubeQuest_save');
+  document.getElementById('btnContinue').disabled = !localStorage.getItem('cubeQuest_save_v5');
   animate();
 });
 </script>
